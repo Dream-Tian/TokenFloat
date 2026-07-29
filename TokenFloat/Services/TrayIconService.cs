@@ -8,6 +8,7 @@ namespace TokenFloat.Services;
 public sealed class TrayIconService : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
+    private readonly ContextMenuStrip _menu;
     private readonly Icon _icon;
     private readonly Action _exitApplication;
     private readonly UpdateService _updateService;
@@ -27,14 +28,14 @@ public sealed class TrayIconService : IDisposable
         _downloadInstaller = downloadInstaller;
         _errorLogService = errorLogService;
         _icon = CreateAppIcon();
-        var menu = new ContextMenuStrip();
+        _menu = CreateContextMenu();
         _notifyIcon = new NotifyIcon
         {
             Icon = _icon,
             Text = "TokenFloat 用量",
             Visible = true
         };
-        menu.Items.Add("显示用量", null, (_, _) => showWindow());
+        _menu.Items.Add("显示用量", null, (_, _) => showWindow());
         var startupItem = new ToolStripMenuItem("开机自启")
         {
             Checked = startupService.IsEnabled()
@@ -56,7 +57,7 @@ public sealed class TrayIconService : IDisposable
                     ToolTipIcon.Warning);
             }
         };
-        menu.Items.Add(startupItem);
+        _menu.Items.Add(startupItem);
         var autoUpdateItem = new ToolStripMenuItem("自动检查更新")
         {
             Checked = updateService.Settings.AutoCheckEnabled
@@ -66,18 +67,26 @@ public sealed class TrayIconService : IDisposable
             updateService.SetAutoCheck(!autoUpdateItem.Checked);
             autoUpdateItem.Checked = updateService.Settings.AutoCheckEnabled;
         };
-        menu.Items.Add(autoUpdateItem);
-        menu.Items.Add("检查更新...", null, async (_, _) => await CheckForUpdatesAsync(true));
-        menu.Items.Add("设置更新源...", null, (_, _) => ConfigureUpdateSource());
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("退出", null, (_, _) => exitApplication());
-        menu.Opening += (_, _) =>
+        _menu.Items.Add(autoUpdateItem);
+        _menu.Items.Add("检查更新...", null, async (_, _) => await CheckForUpdatesAsync(true));
+        _menu.Items.Add("设置更新源...", null, (_, _) => ConfigureUpdateSource());
+        _menu.Items.Add(new ToolStripSeparator());
+        _menu.Items.Add("退出", null, (_, _) => exitApplication());
+        foreach (ToolStripItem item in _menu.Items)
+        {
+            item.Padding = item is ToolStripSeparator
+                ? new Padding(0, 2, 0, 2)
+                : new Padding(8, 4, 12, 4);
+        }
+
+        _menu.Opening += (_, _) =>
         {
             startupItem.Checked = startupService.IsEnabled();
             autoUpdateItem.Checked = updateService.Settings.AutoCheckEnabled;
+            InkContextMenuRenderer.ApplyRoundedRegion(_menu);
         };
 
-        _notifyIcon.ContextMenuStrip = menu;
+        _notifyIcon.ContextMenuStrip = _menu;
         _notifyIcon.DoubleClick += (_, _) => showWindow();
         _notifyIcon.MouseClick += (_, args) =>
         {
@@ -214,6 +223,7 @@ public sealed class TrayIconService : IDisposable
     {
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
+        _menu.Dispose();
         _icon.Dispose();
     }
 
@@ -241,4 +251,20 @@ public sealed class TrayIconService : IDisposable
 
         return (Icon)SystemIcons.Application.Clone();
     }
+
+    /// <summary>
+    /// 创建与主窗口一致的宣纸菜单，并用自绘渲染器替换系统默认配色和勾选样式。
+    /// </summary>
+    private static ContextMenuStrip CreateContextMenu() => new()
+    {
+        Renderer = new InkContextMenuRenderer(),
+        Font = new Font("楷体", 11f, FontStyle.Regular, GraphicsUnit.Point),
+        BackColor = Color.FromArgb(248, 245, 240),
+        ForeColor = Color.FromArgb(51, 51, 51),
+        ShowImageMargin = false,
+        ShowCheckMargin = true,
+        DropShadowEnabled = false,
+        Padding = new Padding(5, 6, 5, 6),
+        MinimumSize = new Size(184, 0)
+    };
 }

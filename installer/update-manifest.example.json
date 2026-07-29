@@ -1,6 +1,6 @@
 {
-  "version": "1.5.0",
+  "version": "1.5.1",
   "installerUrl": "TokenFloat-Setup-x64.exe",
   "sha256": "REPLACE_WITH_INSTALLER_SHA256",
-  "releaseNotes": "新增单实例唤醒、下载进度、自动测试和本地错误日志。"
+  "releaseNotes": "重绘系统托盘右键菜单，统一为紧凑水墨宣纸风格。"
 }
