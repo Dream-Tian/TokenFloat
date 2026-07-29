@@ -1,6 +1,6 @@
 {
-  "version": "1.6.0",
+  "version": "1.7.0",
   "installerUrl": "TokenFloat-Setup-x64.exe",
   "sha256": "REPLACE_WITH_INSTALLER_SHA256",
-  "releaseNotes": "新增水墨风设置页，统一管理自动更新、更新检查和更新源。"
+  "releaseNotes": "迷你窗口新增 Token 增量上浮渐隐动画。"
 }

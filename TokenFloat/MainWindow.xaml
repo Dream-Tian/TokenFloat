@@ -572,6 +572,10 @@
                 <TextBlock x:Name="MiniCostText" Text="--" FontFamily="{StaticResource BodyFont}"
                            FontSize="16" Foreground="{StaticResource SealRed}" />
             </StackPanel>
+            <Canvas x:Name="MiniIncreaseCanvas"
+                    Grid.ColumnSpan="4"
+                    ClipToBounds="True"
+                    IsHitTestVisible="False" />
         </Grid>
         </Grid>
     </Border>

@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using TokenFloat.Models;
@@ -38,6 +39,7 @@ public partial class MainWindow : Window
     private TrendMetric _trendMetric = TrendMetric.Tokens;
     private double _trendMaximum;
     private bool _isMiniMode;
+    private long? _lastTodayTokens;
 
     public event Action<string>? TraySummaryChanged;
 
@@ -136,6 +138,7 @@ public partial class MainWindow : Window
         MiniTokensText.Text = FormatTokens(today.TotalTokens);
         MiniCostText.Text = FormatCost(todayPricing);
         MiniCostText.ToolTip = BuildCostTooltip(todayPricing);
+        UpdateMiniTokenIncrease(today.TotalTokens);
         DrawUsageTrend();
         TraySummaryChanged?.Invoke(BuildTraySummary());
     }
@@ -467,6 +470,56 @@ public partial class MainWindow : Window
         };
     }
 
+    /// <summary>
+    /// 迷你窗口可见时把本次 Token 增量向上漂浮并渐隐，其他状态只更新比较基准。
+    /// </summary>
+    private void UpdateMiniTokenIncrease(long currentTokens)
+    {
+        var previousTokens = _lastTodayTokens;
+        _lastTodayTokens = currentTokens;
+        if (!_isMiniMode || !IsVisible || previousTokens is null || currentTokens <= previousTokens.Value)
+        {
+            return;
+        }
+
+        var text = new TextBlock
+        {
+            Text = $"+{FormatTokens(currentTokens - previousTokens.Value)}",
+            FontFamily = (FontFamily)FindResource("BodyFont"),
+            FontSize = 13,
+            FontWeight = FontWeights.Bold,
+            Foreground = (Brush)FindResource("LandscapeGreen"),
+            Opacity = 0,
+            RenderTransform = new TranslateTransform()
+        };
+        Canvas.SetLeft(text, 58);
+        Canvas.SetTop(text, 31);
+        MiniIncreaseCanvas.Children.Add(text);
+
+        var duration = TimeSpan.FromSeconds(1.8);
+        var storyboard = new Storyboard();
+        var rise = new DoubleAnimation(7, -27, duration)
+        {
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+        Storyboard.SetTarget(rise, text);
+        Storyboard.SetTargetProperty(rise, new PropertyPath("(UIElement.RenderTransform).(TranslateTransform.Y)"));
+        storyboard.Children.Add(rise);
+
+        var fade = new DoubleAnimationUsingKeyFrames();
+        fade.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromPercent(0)));
+        fade.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromPercent(0.14)));
+        fade.KeyFrames.Add(new EasingDoubleKeyFrame(0.82, KeyTime.FromPercent(0.55)));
+        fade.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromPercent(1)));
+        fade.Duration = duration;
+        Storyboard.SetTarget(fade, text);
+        Storyboard.SetTargetProperty(fade, new PropertyPath(OpacityProperty));
+        storyboard.Children.Add(fade);
+
+        storyboard.Completed += (_, _) => MiniIncreaseCanvas.Children.Remove(text);
+        storyboard.Begin();
+    }
+
     private static string FormatCount(long value) => value.ToString("N0");
 
     private static string FormatCost(PricingEstimate estimate)
@@ -537,6 +590,10 @@ public partial class MainWindow : Window
         MinHeight = _isMiniMode ? MiniHeight : NormalHeight;
         Width = _isMiniMode ? MiniWidth : NormalWidth;
         Height = _isMiniMode ? MiniHeight : NormalHeight;
+        if (!_isMiniMode)
+        {
+            MiniIncreaseCanvas.Children.Clear();
+        }
     }
 
     private void MinimizeButton_Click(object sender, RoutedEventArgs e) => HideToTray();
