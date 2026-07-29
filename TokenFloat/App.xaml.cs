@@ -11,6 +11,8 @@ public partial class App : System.Windows.Application
     private readonly ErrorLogService _errorLogService = new();
     private TrayIconService? _trayIcon;
     private SingleInstanceService? _singleInstance;
+    private SettingsWindow? _settingsWindow;
+    private UpdateService? _updateService;
 
     public bool IsExiting { get; private set; }
 
@@ -130,13 +132,13 @@ public partial class App : System.Windows.Application
 
         var window = new MainWindow();
         MainWindow = window;
-        var updateService = new UpdateService();
+        _updateService = new UpdateService();
         _trayIcon = new TrayIconService(
             () => Dispatcher.Invoke(ShowMainWindow),
+            () => Dispatcher.Invoke(ShowSettingsWindow),
             () => Dispatcher.Invoke(ExitApplication),
             new StartupService(),
-            updateService,
-            update => Dispatcher.InvokeAsync(() => DownloadUpdateAsync(update, updateService)).Task.Unwrap(),
+            _updateService,
             _errorLogService);
         window.TraySummaryChanged += summary => _trayIcon?.UpdateSummary(summary);
         _singleInstance?.StartListening(() => Dispatcher.Invoke(ShowMainWindow));
@@ -147,7 +149,11 @@ public partial class App : System.Windows.Application
     private async Task<string?> DownloadUpdateAsync(UpdateInfo update, UpdateService updateService)
     {
         var progressWindow = new UpdateProgressWindow(update);
-        if (MainWindow is { IsVisible: true } owner)
+        if (_settingsWindow is { IsVisible: true } settingsOwner)
+        {
+            progressWindow.Owner = settingsOwner;
+        }
+        else if (MainWindow is { IsVisible: true } owner)
         {
             progressWindow.Owner = owner;
         }
@@ -173,11 +179,40 @@ public partial class App : System.Windows.Application
         window.ShowFromTray();
     }
 
+    /// <summary>
+    /// 复用同一个设置窗口，并把更新下载交给现有的校验与进度流程。
+    /// </summary>
+    private void ShowSettingsWindow()
+    {
+        if (_settingsWindow is not null)
+        {
+            _settingsWindow.Show();
+            _settingsWindow.WindowState = WindowState.Normal;
+            _settingsWindow.Activate();
+            return;
+        }
+
+        if (_updateService is null)
+        {
+            return;
+        }
+
+        _settingsWindow = new SettingsWindow(
+            _updateService,
+            update => DownloadUpdateAsync(update, _updateService),
+            ExitApplication,
+            _errorLogService);
+        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+        _settingsWindow.Show();
+    }
+
     private void ExitApplication()
     {
         IsExiting = true;
         _trayIcon?.Dispose();
         _trayIcon = null;
+        _settingsWindow?.Close();
+        _settingsWindow = null;
         MainWindow?.Close();
         Shutdown();
     }
