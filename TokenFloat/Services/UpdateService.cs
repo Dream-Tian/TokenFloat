@@ -9,6 +9,9 @@ namespace TokenFloat.Services;
 
 public sealed class UpdateService
 {
+    public const string DefaultManifestUrl =
+        "https://github.com/Dream-Tian/TokenFloat/releases/latest/download/update-manifest.json";
+
     private static readonly HttpClient HttpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(20)
@@ -242,8 +245,11 @@ public sealed class UpdateService
         {
             if (File.Exists(SettingsPath))
             {
-                return JsonSerializer.Deserialize<UpdateSettings>(File.ReadAllText(SettingsPath), JsonOptions)
-                       ?? new UpdateSettings();
+                var settings = JsonSerializer.Deserialize<UpdateSettings>(File.ReadAllText(SettingsPath), JsonOptions)
+                               ?? new UpdateSettings();
+                return string.IsNullOrWhiteSpace(settings.ManifestUrl)
+                    ? settings with { ManifestUrl = DefaultManifestUrl }
+                    : settings;
             }
         }
         catch (Exception exception) when (exception is IOException or JsonException)
@@ -296,7 +302,7 @@ public sealed class UpdateService
 
 public sealed record UpdateSettings(
     bool AutoCheckEnabled = true,
-    string ManifestUrl = "",
+    string ManifestUrl = UpdateService.DefaultManifestUrl,
     DateTimeOffset? LastCheckedUtc = null);
 
 public sealed record UpdateManifest(

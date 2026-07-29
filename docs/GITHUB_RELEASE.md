@@ -37,11 +37,11 @@ git push -u origin main
 
 ## 4. 发布第一个版本
 
-当前项目版本是 `1.4.0`，首次发布执行：
+项目已经发布过 `1.4.0`；当前默认更新源改动应发布为 `1.4.1`：
 
 ```powershell
-git tag v1.4.0
-git push origin v1.4.0
+git tag v1.4.1
+git push origin v1.4.1
 ```
 
 标签会触发 `Release` 工作流，自动完成：
@@ -54,13 +54,13 @@ git push origin v1.4.0
 
 ## 5. 配置 TokenFloat 更新源
 
-第一个 Release 成功后，在 TokenFloat 托盘菜单中选择 **设置更新源...**，填写：
+项目已经内置以下默认更新源：
 
 ```text
-https://github.com/your-name/TokenFloat/releases/latest/download/update-manifest.json
+https://github.com/Dream-Tian/TokenFloat/releases/latest/download/update-manifest.json
 ```
 
-将 `your-name/TokenFloat` 替换为真实仓库路径。然后选择 **检查更新...** 验证。
+第一个 Release 成功后，在托盘中选择 **检查更新...** 验证即可，不需要再次填写。托盘中的 **设置更新源...** 可用于覆盖默认地址。
 
 ## 6. 发布后续版本
 
@@ -76,4 +76,3 @@ git push origin v1.4.1
 ```
 
 必须先上传版本提交，再推送同版本标签。稳定的 `releases/latest/download/update-manifest.json` 地址不需要修改。
-

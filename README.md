@@ -72,6 +72,14 @@ dotnet publish TokenFloat\TokenFloat.csproj -c Release -r win-x64 --self-contain
 
 首次提交和发布步骤见 [GitHub 发布指南](docs/GITHUB_RELEASE.md)。
 
+程序默认更新源为：
+
+```text
+https://github.com/Dream-Tian/TokenFloat/releases/latest/download/update-manifest.json
+```
+
+托盘菜单仍可覆盖该地址。
+
 ## 项目结构
 
 ```text
