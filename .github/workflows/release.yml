@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Validate version
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content -LiteralPath TokenFloat\TokenFloat.csproj
+          $version = [string]$project.Project.PropertyGroup.Version
+          $expectedTag = "v$version"
+          if ($env:GITHUB_REF_NAME -ne $expectedTag) {
+            throw "Tag $env:GITHUB_REF_NAME does not match project version $version. Expected $expectedTag."
+          }
+
+          $installerScript = Get-Content -LiteralPath installer\TokenFloat.iss -Raw
+          if ($installerScript -notmatch ('#define MyAppVersion "' + [regex]::Escape($version) + '"')) {
+            throw "installer/TokenFloat.iss does not use version $version."
+          }
+
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Publish application
+        run: >-
+          dotnet publish TokenFloat\TokenFloat.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:DebugType=None
+          -p:DebugSymbols=false
+          -o artifacts\publish\win-x64
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          & $compiler installer\TokenFloat.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup compilation failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Create update manifest
+        shell: pwsh
+        run: |
+          $installer = 'artifacts\installer\TokenFloat-Setup-x64.exe'
+          $sha256 = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash
+          $manifest = [ordered]@{
+            version = $env:VERSION
+            installerUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$env:VERSION/TokenFloat-Setup-x64.exe"
+            sha256 = $sha256
+            releaseNotes = "See the GitHub Release page for details."
+          }
+          $manifest | ConvertTo-Json | Set-Content -LiteralPath artifacts\installer\update-manifest.json -Encoding utf8
+          "$sha256  TokenFloat-Setup-x64.exe" | Set-Content -LiteralPath artifacts\installer\SHA256SUMS.txt -Encoding ascii
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME `
+            artifacts\installer\TokenFloat-Setup-x64.exe `
+            artifacts\installer\update-manifest.json `
+            artifacts\installer\SHA256SUMS.txt `
+            --title "TokenFloat $env:VERSION" `
+            --generate-notes
+

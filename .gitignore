@@ -1,0 +1,29 @@
+# .NET build output
+**/bin/
+**/obj/
+artifacts/
+.tools/
+
+# IDE and local user files
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local agent state
+.agents/
+.codex/
+
+# Test and coverage output
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store

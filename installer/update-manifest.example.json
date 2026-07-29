@@ -1,0 +1,6 @@
+{
+  "version": "1.4.0",
+  "installerUrl": "TokenFloat-Setup-x64.exe",
+  "sha256": "REPLACE_WITH_INSTALLER_SHA256",
+  "releaseNotes": "新增费用趋势、迷你模式和自动更新。"
+}
