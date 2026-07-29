@@ -1,26 +1,23 @@
-# GitHub 首次发布与自动更新配置
+# GitHub 发布与自动更新配置
 
-## 1. 创建仓库
+## 1. 仓库地址
 
-1. 登录 <https://github.com>，右上角选择 **New repository**。
-2. Repository name 建议填写 `TokenFloat`。
-3. Public 或 Private 均可；私有仓库的 Release 下载需要登录，普通客户端无法直接自动更新，因此需要自动更新时建议使用 Public。
-4. 不要勾选初始化 README、`.gitignore` 或 License，本地项目已经包含这些文件。
-5. 创建仓库后复制 HTTPS 地址，例如：
+当前项目使用：
 
-   ```text
-   https://github.com/your-name/TokenFloat.git
-   ```
+```text
+https://github.com/Dream-Tian/TokenFloat
+```
 
-## 2. 首次提交
+仓库需要保持 Public，客户端才能匿名下载 Release 中的更新清单和安装包。
 
-在项目根目录执行：
+## 2. 推送普通修改
+
+修改通过本地构建和测试后执行：
 
 ```powershell
 git add .
-git commit -m "Initial release"
-git remote add origin https://github.com/your-name/TokenFloat.git
-git push -u origin main
+git commit -m "描述本次修改"
+git push
 ```
 
 如果 GitHub 要求登录，可使用浏览器授权、GitHub Desktop 或 `gh auth login`。
@@ -33,15 +30,18 @@ git push -u origin main
 2. 找到 **Workflow permissions**。
 3. 选择 **Read and write permissions** 并保存。
 
-普通推送会运行 `Build` 工作流，只检查项目能否以零警告构建。
+普通推送和 Pull Request 会运行 `Build` 工作流，执行零警告构建和 xUnit 测试。
 
-## 4. 发布第一个版本
+## 4. 发布 1.5.0
 
-项目已经发布过 `1.4.0`；当前默认更新源改动应发布为 `1.4.1`：
+先提交 1.5.0 的全部修改，再创建同版本标签：
 
 ```powershell
-git tag v1.4.1
-git push origin v1.4.1
+git add .
+git commit -m "Release 1.5.0"
+git push
+git tag v1.5.0
+git push origin v1.5.0
 ```
 
 标签会触发 `Release` 工作流，自动完成：
@@ -64,15 +64,23 @@ https://github.com/Dream-Tian/TokenFloat/releases/latest/download/update-manifes
 
 ## 6. 发布后续版本
 
-例如发布 `1.4.1`：
+例如发布 `1.6.0`：
 
 ```powershell
-.\scripts\set-version.ps1 1.4.1
-git add TokenFloat\TokenFloat.csproj installer\TokenFloat.iss
-git commit -m "Release 1.4.1"
+.\scripts\set-version.ps1 1.6.0
+git add .
+git commit -m "Release 1.6.0"
 git push
-git tag v1.4.1
-git push origin v1.4.1
+git tag v1.6.0
+git push origin v1.6.0
 ```
 
 必须先上传版本提交，再推送同版本标签。稳定的 `releases/latest/download/update-manifest.json` 地址不需要修改。
+
+## 7. 建议的远程仓库设置
+
+- **Settings → General → Features**：开启 Issues。
+- **Settings → Branches**：为 `main` 添加保护规则，要求 Pull Request 和 `Build` 状态检查通过。
+- **Settings → Actions → General**：保留工作流的 Read and write permissions，供 Release 上传文件。
+
+项目暂未附带开源许可证；选择 MIT、GPL-3.0 或保留所有权利后再单独添加，不要直接套用不确定的许可证。

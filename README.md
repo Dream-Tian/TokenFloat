@@ -1,5 +1,8 @@
 # TokenFloat
 
+[![Build](https://github.com/Dream-Tian/TokenFloat/actions/workflows/build.yml/badge.svg)](https://github.com/Dream-Tian/TokenFloat/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/Dream-Tian/TokenFloat?display_name=tag)](https://github.com/Dream-Tian/TokenFloat/releases)
+
 TokenFloat 是一个 Windows 桌面悬浮用量面板，从本机日志统计 Codex、Claude Code 和 Gemini CLI 的 Token、请求次数、速率与官方 API 估算费用。
 
 所有日志只在本机读取和汇总，不读取认证文件，不上传对话内容。
@@ -15,6 +18,9 @@ TokenFloat 是一个 Windows 桌面悬浮用量面板，从本机日志统计 Co
 - 系统托盘、开机自启、Codex 桌面应用快捷启动
 - 每 30 秒后台刷新，持久索引只重读本月发生变化的日志
 - 基于 HTTPS 清单和 SHA-256 校验的自动更新
+- 单实例运行，重复启动时直接唤醒已有窗口
+- 更新下载进度、实时速度和取消操作
+- 本地错误日志与 14 天自动清理
 - 宣纸、水墨、朱印和青绿山水风格界面
 
 ## 系统要求
@@ -30,6 +36,8 @@ TokenFloat 是一个 Windows 桌面悬浮用量面板，从本机日志统计 Co
 - Gemini CLI：`%USERPROFILE%\.gemini\tmp` 和 `%USERPROFILE%\.gemini\history` 中的 `usageMetadata`
 
 索引保存在 `%LOCALAPPDATA%\TokenFloat\usage-index-v5.json.gz`，只包含时间、模型和 Token 数字。
+
+错误日志保存在 `%LOCALAPPDATA%\TokenFloat\logs`，只记录程序版本、异常类型、消息和堆栈，不主动写入日志原文、提示词或认证信息。
 
 ## 费用说明
 
@@ -53,6 +61,12 @@ dotnet run --project TokenFloat\TokenFloat.csproj -c Release
 dotnet run --project TokenFloat\TokenFloat.csproj -c Release -- --verify-usage
 ```
 
+运行自动测试：
+
+```powershell
+dotnet test TokenFloat.Tests\TokenFloat.Tests.csproj -c Release -warnaserror
+```
+
 ## 本地构建安装包
 
 ```powershell
@@ -66,7 +80,7 @@ dotnet publish TokenFloat\TokenFloat.csproj -c Release -r win-x64 --self-contain
 
 仓库已包含：
 
-- `.github/workflows/build.yml`：每次推送验证零警告构建
+- `.github/workflows/build.yml`：每次推送和 Pull Request 自动执行零警告构建与测试
 - `.github/workflows/release.yml`：推送 `v*` 标签时自动创建安装包、SHA-256、更新清单和 GitHub Release
 - `scripts/set-version.ps1`：同步更新项目与安装程序版本
 
@@ -84,6 +98,7 @@ https://github.com/Dream-Tian/TokenFloat/releases/latest/download/update-manifes
 
 ```text
 TokenFloat/               WPF 应用源码与资源
+TokenFloat.Tests/         用量、费用和更新服务自动测试
 installer/                Inno Setup 安装脚本和更新清单示例
 scripts/                  版本与图标维护脚本
 .github/workflows/        GitHub 持续构建和自动发布

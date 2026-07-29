@@ -1,6 +1,5 @@
 using System.Drawing;
 using System.IO;
-using System.Net.Http;
 using System.Windows.Forms;
 using Microsoft.VisualBasic;
 
@@ -12,15 +11,21 @@ public sealed class TrayIconService : IDisposable
     private readonly Icon _icon;
     private readonly Action _exitApplication;
     private readonly UpdateService _updateService;
+    private readonly Func<UpdateInfo, Task<string?>> _downloadInstaller;
+    private readonly ErrorLogService _errorLogService;
 
     public TrayIconService(
         Action showWindow,
         Action exitApplication,
         StartupService startupService,
-        UpdateService updateService)
+        UpdateService updateService,
+        Func<UpdateInfo, Task<string?>> downloadInstaller,
+        ErrorLogService errorLogService)
     {
         _exitApplication = exitApplication;
         _updateService = updateService;
+        _downloadInstaller = downloadInstaller;
+        _errorLogService = errorLogService;
         _icon = CreateAppIcon();
         var menu = new ContextMenuStrip();
         _notifyIcon = new NotifyIcon
@@ -43,6 +48,7 @@ public sealed class TrayIconService : IDisposable
             }
             catch (Exception exception)
             {
+                _errorLogService.Write("设置开机自启", exception);
                 _notifyIcon.ShowBalloonTip(
                     3000,
                     "TokenFloat",
@@ -89,15 +95,26 @@ public sealed class TrayIconService : IDisposable
             return;
         }
 
-        await Task.Delay(TimeSpan.FromSeconds(4));
-        var result = await _updateService.CheckAsync();
-        if (result.Status == UpdateCheckStatus.UpdateAvailable && result.Update is not null)
+        try
         {
-            _notifyIcon.ShowBalloonTip(
-                5000,
-                "TokenFloat 有新版本",
-                $"发现 {result.Update.Version}，请在托盘菜单中选择“检查更新”。",
-                ToolTipIcon.Info);
+            await Task.Delay(TimeSpan.FromSeconds(4));
+            var result = await _updateService.CheckAsync();
+            if (result.Status == UpdateCheckStatus.UpdateAvailable && result.Update is not null)
+            {
+                _notifyIcon.ShowBalloonTip(
+                    5000,
+                    "TokenFloat 有新版本",
+                    $"发现 {result.Update.Version}，请在托盘菜单中选择“检查更新”。",
+                    ToolTipIcon.Info);
+            }
+            else if (result.Status == UpdateCheckStatus.Error)
+            {
+                _errorLogService.Write("启动时检查更新", new InvalidOperationException(result.Message));
+            }
+        }
+        catch (Exception exception)
+        {
+            _errorLogService.Write("启动时检查更新", exception);
         }
     }
 
@@ -133,6 +150,7 @@ public sealed class TrayIconService : IDisposable
 
         if (result.Status == UpdateCheckStatus.Error || result.Update is null)
         {
+            _errorLogService.Write("手动检查更新", new InvalidOperationException(result.Message));
             if (manual)
             {
                 MessageBox.Show(result.Message, "TokenFloat 更新", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -155,13 +173,22 @@ public sealed class TrayIconService : IDisposable
 
         try
         {
-            _notifyIcon.ShowBalloonTip(3000, "TokenFloat 更新", "正在下载安装包…", ToolTipIcon.Info);
-            var installer = await _updateService.DownloadInstallerAsync(result.Update);
+            var installer = await _downloadInstaller(result.Update);
+            if (installer is null)
+            {
+                return;
+            }
+
             UpdateService.StartInstaller(installer);
             _exitApplication();
         }
+        catch (OperationCanceledException)
+        {
+            _notifyIcon.ShowBalloonTip(2500, "TokenFloat 更新", "已取消下载。", ToolTipIcon.Info);
+        }
         catch (Exception exception)
         {
+            _errorLogService.Write("下载或启动更新", exception);
             MessageBox.Show(
                 $"更新失败：{exception.Message}",
                 "TokenFloat 更新",

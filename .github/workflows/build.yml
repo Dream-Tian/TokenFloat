@@ -24,8 +24,10 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Restore
-        run: dotnet restore TokenFloat\TokenFloat.csproj
+        run: dotnet restore TokenFloat.Tests\TokenFloat.Tests.csproj
 
       - name: Build
-        run: dotnet build TokenFloat\TokenFloat.csproj -c Release --no-restore -warnaserror
+        run: dotnet build TokenFloat.Tests\TokenFloat.Tests.csproj -c Release --no-restore -warnaserror
 
+      - name: Test
+        run: dotnet test TokenFloat.Tests\TokenFloat.Tests.csproj -c Release --no-build

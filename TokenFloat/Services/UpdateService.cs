@@ -23,10 +23,15 @@ public sealed class UpdateService
         WriteIndented = true
     };
 
-    private readonly string _folder = Path.Combine(
-        Environment.GetEnvironmentVariable("LOCALAPPDATA")
-            ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "TokenFloat");
+    private readonly string _folder;
+
+    public UpdateService(string? dataFolder = null)
+    {
+        _folder = dataFolder ?? Path.Combine(
+            Environment.GetEnvironmentVariable("LOCALAPPDATA")
+                ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TokenFloat");
+    }
 
     private string SettingsPath => Path.Combine(_folder, "update-settings.json");
 
@@ -112,7 +117,7 @@ public sealed class UpdateService
     /// </summary>
     public async Task<string> DownloadInstallerAsync(
         UpdateInfo update,
-        IProgress<int>? progress = null,
+        IProgress<UpdateDownloadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         var updateFolder = Path.Combine(_folder, "updates");
@@ -133,20 +138,31 @@ public sealed class UpdateService
             {
                 var buffer = new byte[81920];
                 long copied = 0;
+                var stopwatch = Stopwatch.StartNew();
+                progress?.Report(new UpdateDownloadProgress(0, input.Length, 0, 0));
                 int read;
                 while ((read = await input.Stream.ReadAsync(buffer, cancellationToken)) > 0)
                 {
                     await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                     copied += read;
-                    if (input.Length is > 0)
-                    {
-                        progress?.Report((int)Math.Min(100, copied * 100 / input.Length.Value));
-                    }
+                    var percentage = input.Length is > 0
+                        ? (int)Math.Min(100, copied * 100 / input.Length.Value)
+                        : 0;
+                    var bytesPerSecond = copied / Math.Max(0.001, stopwatch.Elapsed.TotalSeconds);
+                    progress?.Report(new UpdateDownloadProgress(
+                        copied,
+                        input.Length,
+                        bytesPerSecond,
+                        percentage));
                 }
             }
 
-            await using var verification = File.OpenRead(temporaryPath);
-            var actualHash = Convert.ToHexString(await SHA256.HashDataAsync(verification, cancellationToken));
+            string actualHash;
+            await using (var verification = File.OpenRead(temporaryPath))
+            {
+                actualHash = Convert.ToHexString(await SHA256.HashDataAsync(verification, cancellationToken));
+            }
+
             if (!string.Equals(actualHash, update.Sha256, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("安装包 SHA-256 校验失败，文件可能已损坏或被替换。");
@@ -316,6 +332,12 @@ public sealed record UpdateInfo(
     UpdateSource InstallerSource,
     string Sha256,
     string ReleaseNotes);
+
+public sealed record UpdateDownloadProgress(
+    long BytesDownloaded,
+    long? TotalBytes,
+    double BytesPerSecond,
+    int Percentage);
 
 public sealed record UpdateSource(Uri? Uri, string? LocalPath);
 

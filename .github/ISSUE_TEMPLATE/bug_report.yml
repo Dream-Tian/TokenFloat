@@ -1,0 +1,43 @@
+name: 错误报告
+description: 报告可复现的问题，帮助改进 TokenFloat
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: 感谢反馈。请勿提交认证信息、提示词或完整对话日志。
+  - type: input
+    id: version
+    attributes:
+      label: TokenFloat 版本
+      placeholder: 例如 1.5.0
+    validations:
+      required: true
+  - type: dropdown
+    id: windows
+    attributes:
+      label: Windows 版本
+      options:
+        - Windows 11
+        - Windows 10
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 请按顺序写明如何稳定触发问题。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期与实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 补充信息
+      description: 可粘贴相关错误片段；上传前请检查并移除用户名、路径和敏感信息。

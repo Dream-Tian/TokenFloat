@@ -8,9 +8,29 @@ namespace TokenFloat;
 
 public partial class App : System.Windows.Application
 {
+    private readonly ErrorLogService _errorLogService = new();
     private TrayIconService? _trayIcon;
+    private SingleInstanceService? _singleInstance;
 
     public bool IsExiting { get; private set; }
+
+    public App()
+    {
+        DispatcherUnhandledException += (_, args) =>
+            _errorLogService.Write("DispatcherUnhandledException", args.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            if (args.ExceptionObject is Exception exception)
+            {
+                _errorLogService.Write("AppDomain.UnhandledException", exception);
+            }
+        };
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            _errorLogService.Write("TaskScheduler.UnobservedTaskException", args.Exception);
+            args.SetObserved();
+        };
+    }
 
     /// <summary>
     /// 验证模式只输出统计；正常模式创建悬浮窗和系统托盘入口。
@@ -18,6 +38,19 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        var isVerificationMode = e.Args.Contains("--verify-usage", StringComparer.OrdinalIgnoreCase) ||
+                                 e.Args.Contains("--verify-update-manifest", StringComparer.OrdinalIgnoreCase);
+        if (!isVerificationMode)
+        {
+            _singleInstance = new SingleInstanceService();
+            if (!_singleInstance.IsPrimary)
+            {
+                _singleInstance.SignalPrimary();
+                Shutdown();
+                return;
+            }
+        }
 
         var updateManifestIndex = Array.FindIndex(
             e.Args,
@@ -102,10 +135,32 @@ public partial class App : System.Windows.Application
             () => Dispatcher.Invoke(ShowMainWindow),
             () => Dispatcher.Invoke(ExitApplication),
             new StartupService(),
-            updateService);
+            updateService,
+            update => Dispatcher.InvokeAsync(() => DownloadUpdateAsync(update, updateService)).Task.Unwrap(),
+            _errorLogService);
         window.TraySummaryChanged += summary => _trayIcon?.UpdateSummary(summary);
+        _singleInstance?.StartListening(() => Dispatcher.Invoke(ShowMainWindow));
         window.Show();
         _ = _trayIcon.CheckForUpdatesOnStartupAsync();
+    }
+
+    private async Task<string?> DownloadUpdateAsync(UpdateInfo update, UpdateService updateService)
+    {
+        var progressWindow = new UpdateProgressWindow(update);
+        if (MainWindow is { IsVisible: true } owner)
+        {
+            progressWindow.Owner = owner;
+        }
+
+        progressWindow.Show();
+        try
+        {
+            return await progressWindow.DownloadAsync(updateService);
+        }
+        finally
+        {
+            progressWindow.CloseAfterDownload();
+        }
     }
 
     private void ShowMainWindow()
@@ -130,6 +185,8 @@ public partial class App : System.Windows.Application
     protected override void OnExit(ExitEventArgs e)
     {
         _trayIcon?.Dispose();
+        _singleInstance?.Dispose();
+        _singleInstance = null;
         base.OnExit(e);
     }
 }

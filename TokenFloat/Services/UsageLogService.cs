@@ -86,7 +86,7 @@ public sealed class UsageLogService
         return BuildSnapshot(events);
     }
 
-    private static UsageSnapshot BuildSnapshot(IEnumerable<TokenUsageEvent> source)
+    internal static UsageSnapshot BuildSnapshot(IEnumerable<TokenUsageEvent> source)
     {
         var uniqueEvents = source
             .GroupBy(item => item.Id, StringComparer.Ordinal)

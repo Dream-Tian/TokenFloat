@@ -1,6 +1,6 @@
 {
-  "version": "1.4.1",
+  "version": "1.5.0",
   "installerUrl": "TokenFloat-Setup-x64.exe",
   "sha256": "REPLACE_WITH_INSTALLER_SHA256",
-  "releaseNotes": "内置默认 GitHub 更新源。"
+  "releaseNotes": "新增单实例唤醒、下载进度、自动测试和本地错误日志。"
 }

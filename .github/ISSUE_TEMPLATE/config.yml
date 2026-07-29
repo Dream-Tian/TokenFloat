@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 发布与自动更新文档
+    url: https://github.com/Dream-Tian/TokenFloat/blob/main/docs/GITHUB_RELEASE.md
+    about: 提交问题前可先查看发布和更新配置说明
