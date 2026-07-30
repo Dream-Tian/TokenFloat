@@ -348,6 +348,11 @@
                                            FontFamily="{StaticResource SerifFont}" FontSize="10"
                                            Foreground="{StaticResource InkClear}" />
                             </StackPanel>
+                            <TextBlock x:Name="ComparisonText"
+                                       Margin="1,-2,0,0"
+                                       FontFamily="{StaticResource BodyFont}"
+                                       FontSize="11"
+                                       Foreground="{StaticResource InkClear}" />
                         </StackPanel>
                     </Grid>
 

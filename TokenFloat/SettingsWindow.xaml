@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="TokenFloat 设置"
         Icon="Assets/tokenfloat-cat.png"
-        Width="380"
-        Height="408"
+        Width="400"
+        Height="650"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -38,7 +38,7 @@
 
         <Style x:Key="InkButtonStyle" TargetType="Button">
             <Setter Property="Height" Value="31" />
-            <Setter Property="Padding" Value="13,0" />
+            <Setter Property="Padding" Value="12,0" />
             <Setter Property="FontFamily" Value="楷体" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{StaticResource InkLight}" />
@@ -74,7 +74,7 @@
         <Style x:Key="ToggleStyle" TargetType="CheckBox">
             <Setter Property="Foreground" Value="{StaticResource InkStrong}" />
             <Setter Property="FontFamily" Value="楷体" />
-            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontSize" Value="14" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -113,6 +113,110 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="InkComboBoxItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="Padding" Value="9,6" />
+            <Setter Property="FontFamily" Value="楷体" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource InkStrong}" />
+            <Setter Property="Background" Value="{StaticResource PaperWhite}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="ItemBorder"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#162E8B57" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource SealRed}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="InkComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="FontFamily" Value="楷体" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource InkStrong}" />
+            <Setter Property="Background" Value="#B8F8F5F0" />
+            <Setter Property="BorderBrush" Value="#49333333" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource InkComboBoxItemStyle}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border x:Name="OuterBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6">
+                                <Grid>
+                                    <ContentPresenter Margin="10,0,32,0"
+                                                      VerticalAlignment="Center"
+                                                      Content="{TemplateBinding SelectionBoxItem}"
+                                                      ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" />
+                                    <TextBlock Margin="0,0,11,1"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               Text="⌄"
+                                               FontFamily="Noto Serif SC"
+                                               FontSize="15"
+                                               Foreground="{StaticResource InkLight}" />
+                                </Grid>
+                            </Border>
+                            <ToggleButton Background="Transparent"
+                                          BorderThickness="0"
+                                          Focusable="False"
+                                          FocusVisualStyle="{x:Null}"
+                                          ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="Transparent" />
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <Popup x:Name="PART_Popup"
+                                   Margin="0,3,0,0"
+                                   AllowsTransparency="True"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Placement="Bottom"
+                                   PopupAnimation="Fade">
+                                <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                        Background="{StaticResource PaperWhite}"
+                                        BorderBrush="#49333333"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                    <ItemsPresenter />
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="OuterBorder" Property="BorderBrush" Value="#6A2E8B57" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SectionStyle" TargetType="Border">
+            <Setter Property="Padding" Value="15,12" />
+            <Setter Property="Background" Value="#BFFFFFF0" />
+            <Setter Property="BorderBrush" Value="#302E8B57" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
     </Window.Resources>
 
     <Border Background="{StaticResource PaperWhite}"
@@ -121,12 +225,14 @@
             CornerRadius="14">
         <Grid>
             <Rectangle Fill="{StaticResource PaperTexture}" IsHitTestVisible="False" />
-            <Grid Margin="24,18,24,20">
+            <Grid Margin="24,18,24,18">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="54" />
                     <RowDefinition Height="1" />
-                    <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
                 <Grid>
@@ -170,12 +276,8 @@
                 <Border Grid.Row="1" Background="#27333333" />
 
                 <Border Grid.Row="2"
-                        Margin="0,16,0,12"
-                        Padding="16,14,16,15"
-                        Background="#BFFFFFF0"
-                        BorderBrush="#302E8B57"
-                        BorderThickness="1"
-                        CornerRadius="10">
+                        Margin="0,13,0,0"
+                        Style="{StaticResource SectionStyle}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -190,12 +292,12 @@
                                    FontSize="19"
                                    Foreground="{StaticResource InkStrong}" />
 
-                        <StackPanel Grid.Row="1" Margin="0,12,0,0">
+                        <StackPanel Grid.Row="1" Margin="0,9,0,0">
                             <CheckBox x:Name="AutoUpdateCheckBox"
                                       Content="自动检查更新"
                                       Click="AutoUpdateCheckBox_Click"
                                       Style="{StaticResource ToggleStyle}" />
-                            <TextBlock Margin="0,3,46,0"
+                            <TextBlock Margin="0,2,46,0"
                                        Text="启动后每 24 小时在后台检查一次"
                                        FontFamily="楷体"
                                        FontSize="11"
@@ -203,14 +305,14 @@
                         </StackPanel>
 
                         <TextBlock Grid.Row="2"
-                                   Margin="0,14,0,5"
+                                   Margin="0,10,0,4"
                                    Text="更新清单地址"
                                    FontFamily="楷体"
-                                   FontSize="13"
+                                   FontSize="12"
                                    Foreground="{StaticResource InkLight}" />
 
                         <Border Grid.Row="3"
-                                Height="36"
+                                Height="34"
                                 Background="#B8F8F5F0"
                                 BorderBrush="#49333333"
                                 BorderThickness="1"
@@ -227,11 +329,11 @@
                         </Border>
 
                         <StackPanel Grid.Row="4"
-                                    Margin="0,12,0,0"
+                                    Margin="0,9,0,0"
                                     HorizontalAlignment="Right"
                                     Orientation="Horizontal">
                             <Button x:Name="SaveSourceButton"
-                                    Margin="0,0,8,0"
+                                    Margin="0,0,7,0"
                                     Content="保存"
                                     Click="SaveSourceButton_Click"
                                     Style="{StaticResource InkButtonStyle}" />
@@ -240,7 +342,7 @@
                                     Click="CheckUpdatesButton_Click"
                                     Style="{StaticResource InkButtonStyle}" />
                             <Button x:Name="DownloadUpdateButton"
-                                    Margin="8,0,0,0"
+                                    Margin="7,0,0,0"
                                     Content="下载并安装"
                                     Click="DownloadUpdateButton_Click"
                                     Style="{StaticResource InkButtonStyle}"
@@ -251,9 +353,116 @@
                     </Grid>
                 </Border>
 
+                <Border Grid.Row="3"
+                        Margin="0,10,0,0"
+                        Style="{StaticResource SectionStyle}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="刷新"
+                                   FontFamily="华文行楷"
+                                   FontSize="19"
+                                   Foreground="{StaticResource InkStrong}" />
+                        <Grid Grid.Row="1" Margin="0,9,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="128" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center"
+                                       Text="统计刷新间隔"
+                                       FontFamily="楷体"
+                                       FontSize="14"
+                                       Foreground="{StaticResource InkStrong}" />
+                            <ComboBox x:Name="RefreshIntervalComboBox"
+                                      Grid.Column="1"
+                                      SelectionChanged="RefreshIntervalComboBox_SelectionChanged"
+                                      Style="{StaticResource InkComboBoxStyle}">
+                                <ComboBoxItem Content="10 秒" Tag="10" />
+                                <ComboBoxItem Content="30 秒" Tag="30" />
+                                <ComboBoxItem Content="1 分钟" Tag="60" />
+                                <ComboBoxItem Content="5 分钟" Tag="300" />
+                            </ComboBox>
+                        </Grid>
+                        <CheckBox x:Name="RefreshOnlyVisibleCheckBox"
+                                  Grid.Row="2"
+                                  Margin="0,9,0,0"
+                                  Content="仅窗口可见时刷新"
+                                  Click="RefreshOnlyVisibleCheckBox_Click"
+                                  Style="{StaticResource ToggleStyle}" />
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="4"
+                        Margin="0,10,0,0"
+                        Style="{StaticResource SectionStyle}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid>
+                            <TextBlock Text="本地数据"
+                                       FontFamily="华文行楷"
+                                       FontSize="19"
+                                       Foreground="{StaticResource InkStrong}" />
+                            <Button HorizontalAlignment="Right"
+                                    Content="打开目录"
+                                    Click="OpenDataFolderButton_Click"
+                                    Style="{StaticResource InkButtonStyle}" />
+                        </Grid>
+                        <Grid Grid.Row="1" Margin="0,9,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="24" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="统计缓存"
+                                       FontFamily="楷体"
+                                       FontSize="13"
+                                       Foreground="{StaticResource InkLight}" />
+                            <TextBlock x:Name="UsageCacheSizeText"
+                                       Grid.Column="1"
+                                       FontFamily="Noto Serif SC"
+                                       FontSize="12"
+                                       Foreground="{StaticResource SealRed}" />
+                            <TextBlock Grid.Column="3"
+                                       Text="错误日志"
+                                       FontFamily="楷体"
+                                       FontSize="13"
+                                       Foreground="{StaticResource InkLight}" />
+                            <TextBlock x:Name="ErrorLogSizeText"
+                                       Grid.Column="4"
+                                       FontFamily="Noto Serif SC"
+                                       FontSize="12"
+                                       Foreground="{StaticResource SealRed}" />
+                        </Grid>
+                        <StackPanel Grid.Row="2"
+                                    Margin="0,9,0,0"
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
+                            <Button x:Name="ClearUsageCacheButton"
+                                    Margin="0,0,7,0"
+                                    Content="清除统计缓存"
+                                    Click="ClearUsageCacheButton_Click"
+                                    Style="{StaticResource InkButtonStyle}" />
+                            <Button x:Name="ClearErrorLogsButton"
+                                    Content="清除错误日志"
+                                    Click="ClearErrorLogsButton_Click"
+                                    Style="{StaticResource InkButtonStyle}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <TextBlock x:Name="StatusText"
-                           Grid.Row="3"
-                           MinHeight="34"
+                           Grid.Row="5"
+                           Margin="0,10,0,0"
+                           MinHeight="28"
                            Text="设置只保存在本机"
                            TextWrapping="Wrap"
                            FontFamily="楷体"

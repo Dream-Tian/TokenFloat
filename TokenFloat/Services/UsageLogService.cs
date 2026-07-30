@@ -7,7 +7,7 @@ namespace TokenFloat.Services;
 
 public sealed class UsageLogService
 {
-    private const int CacheVersion = 5;
+    private const int CacheVersion = 6;
 
     private static readonly JsonDocumentOptions JsonOptions = new()
     {
@@ -49,14 +49,34 @@ public sealed class UsageLogService
     }
 
     /// <summary>
-    /// 只检查本月日志，复用未变化文件的持久索引，并在后台更新汇总。
+    /// 检查本月和上月日志，复用未变化文件的持久索引，并在后台更新汇总。
     /// </summary>
     public Task<UsageSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) =>
         Task.Run(() => LoadSnapshot(cancellationToken), cancellationToken);
 
+    /// <summary>
+    /// 清空内存和磁盘统计索引；下一次加载会重新扫描原始日志。
+    /// </summary>
+    public void ClearCache()
+    {
+        _cache.Clear();
+        _cacheDirty = false;
+        var folder = Path.GetDirectoryName(_cachePath)!;
+        if (!Directory.Exists(folder))
+        {
+            return;
+        }
+
+        foreach (var path in Directory.EnumerateFiles(folder, "usage-index-v*.json.gz"))
+        {
+            File.Delete(path);
+        }
+    }
+
     private UsageSnapshot LoadSnapshot(CancellationToken cancellationToken)
     {
         var monthStart = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+        var historyStart = monthStart.AddMonths(-1);
         var currentFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var events = new List<TokenUsageEvent>();
 
@@ -64,17 +84,17 @@ public sealed class UsageLogService
             Path.Combine(_userProfile, ".codex", "sessions"),
             "*.jsonl",
             ParseCodexFile,
-            monthStart,
+            historyStart,
             currentFiles,
             cancellationToken));
         events.AddRange(ReadFiles(
             Path.Combine(_userProfile, ".claude", "projects"),
             "*.jsonl",
             ParseClaudeFile,
-            monthStart,
+            historyStart,
             currentFiles,
             cancellationToken));
-        events.AddRange(ReadGeminiFiles(monthStart, currentFiles, cancellationToken));
+        events.AddRange(ReadGeminiFiles(historyStart, currentFiles, cancellationToken));
 
         foreach (var stalePath in _cache.Keys.Where(path => !currentFiles.Contains(path)).ToArray())
         {
@@ -543,7 +563,7 @@ public sealed class UsageLogService
             SumSince(events, todayStart),
             SumSince(events, weekStart),
             SumSince(events, monthStart),
-            events.Length > 0);
+            events.Any(item => item.Timestamp.LocalDateTime >= monthStart));
     }
 
     private static TokenTotals SumSince(IEnumerable<TokenUsageEvent> source, DateTime start)

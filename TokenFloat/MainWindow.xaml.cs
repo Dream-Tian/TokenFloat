@@ -27,7 +27,8 @@ public partial class MainWindow : Window
     private const double MiniWidth = 286;
     private const double MiniHeight = 78;
 
-    private readonly UsageLogService _usageLogService = new();
+    private readonly UsageLogService _usageLogService;
+    private readonly AppSettingsService _appSettingsService;
     private readonly PricingService _pricingService = new();
     private readonly WindowPositionStore _positionStore = new();
     private readonly CodexAppLauncherService _codexAppLauncher = new();
@@ -43,17 +44,31 @@ public partial class MainWindow : Window
 
     public event Action<string>? TraySummaryChanged;
 
-    public MainWindow()
+    public MainWindow(UsageLogService usageLogService, AppSettingsService appSettingsService)
     {
         InitializeComponent();
+        _usageLogService = usageLogService;
+        _appSettingsService = appSettingsService;
         Topmost = false;
         _isMiniMode = _positionStore.LoadMiniMode();
         ApplyWindowMode();
-        _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-        _refreshTimer.Tick += async (_, _) => await RefreshAsync();
+        _refreshTimer = new DispatcherTimer();
+        ApplyRefreshSettings(_appSettingsService.Settings);
+        _appSettingsService.SettingsChanged += ApplyRefreshSettings;
+        _refreshTimer.Tick += async (_, _) =>
+        {
+            if (!_appSettingsService.Settings.RefreshOnlyWhenVisible || IsVisible)
+            {
+                await RefreshAsync();
+            }
+        };
         Loaded += MainWindow_Loaded;
         Closing += MainWindow_Closing;
-        Closed += (_, _) => _refreshTimer.Stop();
+        Closed += (_, _) =>
+        {
+            _refreshTimer.Stop();
+            _appSettingsService.SettingsChanged -= ApplyRefreshSettings;
+        };
         SizeChanged += (_, _) => DrawUsageTrend();
         StateChanged += (_, _) =>
         {
@@ -105,6 +120,33 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// 删除统计索引后立即从原始日志重建；刷新进行中时拒绝重复清理。
+    /// </summary>
+    public async Task<bool> ClearUsageCacheAsync()
+    {
+        if (_isRefreshing)
+        {
+            return false;
+        }
+
+        _isRefreshing = true;
+        try
+        {
+            _usageLogService.ClearCache();
+            _snapshot = await _usageLogService.LoadSnapshotAsync();
+            RenderSnapshot();
+            return true;
+        }
+        finally
+        {
+            _isRefreshing = false;
+        }
+    }
+
+    private void ApplyRefreshSettings(AppSettings settings) =>
+        _refreshTimer.Interval = TimeSpan.FromSeconds(settings.RefreshIntervalSeconds);
+
     private void RenderSnapshot()
     {
         if (_snapshot is null)
@@ -129,6 +171,7 @@ public partial class MainWindow : Window
             UsagePeriod.Week => "本周所耗",
             _ => "本月所耗"
         };
+        RenderComparison(_snapshot.ComparisonFor(_period));
 
         CodexTokensText.Text = ProviderText("Codex");
         ClaudeTokensText.Text = ProviderText("Claude");
@@ -141,6 +184,28 @@ public partial class MainWindow : Window
         UpdateMiniTokenIncrease(today.TotalTokens);
         DrawUsageTrend();
         TraySummaryChanged?.Invoke(BuildTraySummary());
+    }
+
+    private void RenderComparison(UsageComparison comparison)
+    {
+        if (comparison.PreviousTokens == 0 || comparison.ChangePercent is null)
+        {
+            ComparisonText.Text = $"{comparison.Label} · 暂无记录";
+            ComparisonText.Foreground = (Brush)FindResource("InkClear");
+        }
+        else
+        {
+            var direction = comparison.ChangePercent > 0 ? "↑" : comparison.ChangePercent < 0 ? "↓" : "—";
+            ComparisonText.Text = $"{comparison.Label}  {direction} {Math.Abs(comparison.ChangePercent.Value):0.#}%";
+            ComparisonText.Foreground = comparison.ChangePercent switch
+            {
+                > 0 => (Brush)FindResource("SealRed"),
+                < 0 => (Brush)FindResource("LandscapeGreen"),
+                _ => (Brush)FindResource("InkClear")
+            };
+        }
+
+        ComparisonText.ToolTip = $"当前 {FormatTokens(comparison.CurrentTokens)} · 同期 {FormatTokens(comparison.PreviousTokens)}";
     }
 
     private string ProviderText(string providerName)
@@ -575,11 +640,14 @@ public partial class MainWindow : Window
 
     private void ToggleMiniMode()
     {
+        var currentLeft = Left;
+        var currentTop = Top;
         _positionStore.Save(this, _isMiniMode);
         _isMiniMode = !_isMiniMode;
         _positionStore.SaveMiniMode(_isMiniMode);
         ApplyWindowMode();
-        _positionStore.Restore(this, _isMiniMode);
+        _positionStore.PlaceAt(this, currentLeft, currentTop);
+        _positionStore.Save(this, _isMiniMode);
     }
 
     private void ApplyWindowMode()

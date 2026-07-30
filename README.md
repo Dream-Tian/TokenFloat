@@ -14,12 +14,14 @@ TokenFloat 是一个 Windows 桌面悬浮用量面板，从本机日志统计 Co
 - Codex、Claude Code、Gemini CLI 分提供商与模型明细
 - Token / 费用趋势切换，悬浮显示时段 Token、请求数和金额
 - 官方 API 付费层价格估算，区分普通输入、缓存读写和输出
+- 今日、本周、本月与上一周期相同进度的用量比较
 - 双击标题切换迷你模式，普通与迷你窗口分别记住位置
 - 迷你模式实时显示 Token 新增量的上浮渐隐动画
 - 系统托盘、开机自启、Codex 桌面应用快捷启动
-- 每 30 秒后台刷新，持久索引只重读本月发生变化的日志
+- 10 秒至 5 分钟可配置刷新，可选择仅窗口可见时刷新
+- 持久索引只重读本月和上月发生变化的日志
 - 基于 HTTPS 清单和 SHA-256 校验的自动更新
-- 水墨风设置页，集中管理自动检查、更新源和手动更新
+- 水墨风设置页，集中管理更新、刷新和本地缓存/错误日志
 - 单实例运行，重复启动时直接唤醒已有窗口
 - 更新下载进度、实时速度和取消操作
 - 本地错误日志与 14 天自动清理
@@ -37,7 +39,7 @@ TokenFloat 是一个 Windows 桌面悬浮用量面板，从本机日志统计 Co
 - Claude Code：`%USERPROFILE%\.claude\projects\**\*.jsonl`
 - Gemini CLI：`%USERPROFILE%\.gemini\tmp` 和 `%USERPROFILE%\.gemini\history` 中的 `usageMetadata`
 
-索引保存在 `%LOCALAPPDATA%\TokenFloat\usage-index-v5.json.gz`，只包含时间、模型和 Token 数字。
+索引保存在 `%LOCALAPPDATA%\TokenFloat\usage-index-v6.json.gz`，只包含时间、模型和 Token 数字。
 
 错误日志保存在 `%LOCALAPPDATA%\TokenFloat\logs`，只记录程序版本、异常类型、消息和堆栈，不主动写入日志原文、提示词或认证信息。
 
@@ -94,7 +96,7 @@ dotnet publish TokenFloat\TokenFloat.csproj -c Release -r win-x64 --self-contain
 https://github.com/Dream-Tian/TokenFloat/releases/latest/download/update-manifest.json
 ```
 
-托盘菜单仍可覆盖该地址。
+右键菜单的“设置...”页面可以覆盖该地址。
 
 ## 项目结构
 

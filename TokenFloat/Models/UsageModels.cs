@@ -103,6 +103,46 @@ public sealed record UsageSnapshot(
     }
 
     /// <summary>
+    /// 将当前周期截至此刻的用量，与上一周期相同进度的用量进行比较。
+    /// </summary>
+    public UsageComparison ComparisonFor(UsagePeriod period, DateTime? now = null)
+    {
+        var current = now ?? DateTime.Now;
+        var currentStart = PeriodStart(period, current);
+        var previousStart = period switch
+        {
+            UsagePeriod.Today => currentStart.AddDays(-1),
+            UsagePeriod.Week => currentStart.AddDays(-7),
+            _ => currentStart.AddMonths(-1)
+        };
+        var previousPeriodEnd = period switch
+        {
+            UsagePeriod.Today => previousStart.AddDays(1),
+            UsagePeriod.Week => previousStart.AddDays(7),
+            _ => previousStart.AddMonths(1)
+        };
+        var previousEnd = previousStart + (current - currentStart);
+        if (previousEnd > previousPeriodEnd)
+        {
+            previousEnd = previousPeriodEnd;
+        }
+
+        var currentTokens = SumTokens(currentStart, current);
+        var previousTokens = SumTokens(previousStart, previousEnd);
+        double? changePercent = previousTokens > 0
+            ? (currentTokens - previousTokens) * 100d / previousTokens
+            : null;
+        var label = period switch
+        {
+            UsagePeriod.Today => "较昨日同期",
+            UsagePeriod.Week => "较上周同期",
+            _ => "较上月同期"
+        };
+
+        return new UsageComparison(label, currentTokens, previousTokens, changePercent);
+    }
+
+    /// <summary>
     /// 今日按小时、本周按星期、本月按日期生成趋势点。
     /// </summary>
     public UsageTrend TrendFor(UsagePeriod period, DateTime? now = null)
@@ -167,6 +207,10 @@ public sealed record UsageSnapshot(
         UsagePeriod.Week => current.Date.AddDays(-(((int)current.DayOfWeek + 6) % 7)),
         _ => new DateTime(current.Year, current.Month, 1)
     };
+
+    private long SumTokens(DateTime start, DateTime end) => Events
+        .Where(item => item.Timestamp.LocalDateTime >= start && item.Timestamp.LocalDateTime < end)
+        .Sum(item => item.InputTokens + item.OutputTokens);
 }
 
 public sealed record UsageRates(long RequestCount, double AverageRpm, double AverageTpm);
@@ -176,3 +220,9 @@ public sealed record ModelUsage(string Model, TokenTotals Totals);
 public sealed record UsageTrend(string Title, IReadOnlyList<UsageTrendPoint> Points);
 
 public sealed record UsageTrendPoint(string Label, long Tokens);
+
+public sealed record UsageComparison(
+    string Label,
+    long CurrentTokens,
+    long PreviousTokens,
+    double? ChangePercent);

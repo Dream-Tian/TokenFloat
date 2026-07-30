@@ -58,6 +58,28 @@ public sealed class WindowPositionStore
         }
     }
 
+    /// <summary>
+    /// 在指定坐标切换窗口尺寸，仅在新尺寸超出虚拟桌面时向屏幕内收回。
+    /// </summary>
+    public void PlaceAt(Window window, double left, double top)
+    {
+        if (!double.IsFinite(left) || !double.IsFinite(top))
+        {
+            return;
+        }
+
+        var maxLeft = Math.Max(
+            SystemParameters.VirtualScreenLeft,
+            SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - window.Width);
+        var maxTop = Math.Max(
+            SystemParameters.VirtualScreenTop,
+            SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - window.Height);
+
+        window.WindowStartupLocation = WindowStartupLocation.Manual;
+        window.Left = Math.Clamp(left, SystemParameters.VirtualScreenLeft, maxLeft);
+        window.Top = Math.Clamp(top, SystemParameters.VirtualScreenTop, maxTop);
+    }
+
     public bool LoadMiniMode()
     {
         try

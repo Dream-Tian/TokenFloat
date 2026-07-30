@@ -85,4 +85,64 @@ public sealed class UsageAndPricingTests
         Assert.Equal(snapshot.TotalFor(period).RequestCount, trend.Points.Sum(point => point.RequestCount));
         Assert.Equal(estimate.EstimatedUsd, trend.Points.Sum(point => point.Pricing.EstimatedUsd));
     }
+
+    [Theory]
+    [InlineData(UsagePeriod.Today, "较昨日同期")]
+    [InlineData(UsagePeriod.Week, "较上周同期")]
+    [InlineData(UsagePeriod.Month, "较上月同期")]
+    public void ComparisonFor_ComparesTheSameElapsedPartOfPreviousPeriod(
+        UsagePeriod period,
+        string expectedLabel)
+    {
+        var now = new DateTime(2026, 7, 15, 12, 0, 0);
+        var currentStart = period switch
+        {
+            UsagePeriod.Today => now.Date,
+            UsagePeriod.Week => now.Date.AddDays(-(((int)now.DayOfWeek + 6) % 7)),
+            _ => new DateTime(now.Year, now.Month, 1)
+        };
+        var previousStart = period switch
+        {
+            UsagePeriod.Today => currentStart.AddDays(-1),
+            UsagePeriod.Week => currentStart.AddDays(-7),
+            _ => currentStart.AddMonths(-1)
+        };
+        var offset = TimeZoneInfo.Local.GetUtcOffset(now);
+        var snapshot = new UsageSnapshot(
+            now,
+            [],
+            [
+                new TokenUsageEvent(
+                    "current",
+                    "Codex",
+                    new DateTimeOffset(currentStart.AddHours(1), offset),
+                    200,
+                    0,
+                    0,
+                    null),
+                new TokenUsageEvent(
+                    "previous",
+                    "Codex",
+                    new DateTimeOffset(previousStart.AddHours(1), offset),
+                    100,
+                    0,
+                    0,
+                    null),
+                new TokenUsageEvent(
+                    "previous-later",
+                    "Codex",
+                    new DateTimeOffset(previousStart + (now - currentStart) + TimeSpan.FromHours(1), offset),
+                    1_000,
+                    0,
+                    0,
+                    null)
+            ]);
+
+        var comparison = snapshot.ComparisonFor(period, now);
+
+        Assert.Equal(expectedLabel, comparison.Label);
+        Assert.Equal(200, comparison.CurrentTokens);
+        Assert.Equal(100, comparison.PreviousTokens);
+        Assert.Equal(100d, comparison.ChangePercent);
+    }
 }

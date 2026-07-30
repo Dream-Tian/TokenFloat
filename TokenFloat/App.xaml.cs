@@ -9,6 +9,9 @@ namespace TokenFloat;
 public partial class App : System.Windows.Application
 {
     private readonly ErrorLogService _errorLogService = new();
+    private readonly AppSettingsService _appSettingsService = new();
+    private readonly LocalDataService _localDataService = new();
+    private readonly UsageLogService _usageLogService = new();
     private TrayIconService? _trayIcon;
     private SingleInstanceService? _singleInstance;
     private SettingsWindow? _settingsWindow;
@@ -130,7 +133,7 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        var window = new MainWindow();
+        var window = new MainWindow(_usageLogService, _appSettingsService);
         MainWindow = window;
         _updateService = new UpdateService();
         _trayIcon = new TrayIconService(
@@ -199,7 +202,10 @@ public partial class App : System.Windows.Application
 
         _settingsWindow = new SettingsWindow(
             _updateService,
+            _appSettingsService,
+            _localDataService,
             update => DownloadUpdateAsync(update, _updateService),
+            () => (MainWindow as TokenFloat.MainWindow)?.ClearUsageCacheAsync() ?? Task.FromResult(false),
             ExitApplication,
             _errorLogService);
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;

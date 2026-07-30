@@ -1,6 +1,6 @@
 {
-  "version": "1.7.0",
+  "version": "1.8.0",
   "installerUrl": "TokenFloat-Setup-x64.exe",
   "sha256": "REPLACE_WITH_INSTALLER_SHA256",
-  "releaseNotes": "迷你窗口新增 Token 增量上浮渐隐动画。"
+  "releaseNotes": "新增同期用量比较、可配置刷新间隔和本地数据管理。"
 }

@@ -60,7 +60,7 @@ git push origin v1.5.0
 https://github.com/Dream-Tian/TokenFloat/releases/latest/download/update-manifest.json
 ```
 
-第一个 Release 成功后，在托盘中选择 **检查更新...** 验证即可，不需要再次填写。托盘中的 **设置更新源...** 可用于覆盖默认地址。
+第一个 Release 成功后，在右键菜单中打开 **设置...**，再选择 **检查更新** 验证即可，不需要再次填写。设置页也可覆盖默认地址。
 
 ## 6. 发布后续版本
 
