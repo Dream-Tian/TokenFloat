@@ -115,6 +115,72 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="InkActionButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="29" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="#49333333" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource InkLight}" />
+            <Setter Property="FontFamily" Value="{StaticResource BodyFont}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ActionBorder"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ActionBorder" Property="Background" Value="#142E8B57" />
+                                <Setter TargetName="ActionBorder" Property="BorderBrush" Value="#6A2E8B57" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="InkDateTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="#B8F8F5F0" />
+            <Setter Property="BorderBrush" Value="#49333333" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource InkStrong}" />
+            <Setter Property="FontFamily" Value="{StaticResource SerifFont}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="CaretBrush" Value="{StaticResource SealRed}" />
+            <Setter Property="SelectionBrush" Value="#4C2E8B57" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="DateBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="DateBorder" Property="BorderBrush" Value="#7A2E8B57" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="InkScrollRepeatButtonStyle" TargetType="RepeatButton">
             <Setter Property="Focusable" Value="False" />
             <Setter Property="Background" Value="Transparent" />
@@ -300,7 +366,8 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="52" />
+                        <ColumnDefinition Width="62" />
+                        <ColumnDefinition Width="34" />
                     </Grid.ColumnDefinitions>
                     <Button x:Name="TodayButton" Grid.Column="0" Style="{StaticResource PeriodButtonStyle}"
                             Content="今日" Tag="Today" Click="PeriodButton_Click" />
@@ -308,12 +375,16 @@
                             Content="本周" Tag="Week" Click="PeriodButton_Click" />
                     <Button x:Name="MonthButton" Grid.Column="2" Style="{StaticResource PeriodButtonStyle}"
                             Content="本月" Tag="Month" Click="PeriodButton_Click" />
-                    <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" Opacity="0.7">
-                        <TextBlock Text="观" FontFamily="{StaticResource CalligraphyFont}" FontSize="14"
-                                   Foreground="{StaticResource LandscapeGreen}" VerticalAlignment="Center" />
-                        <Rectangle Width="21" Height="1" Margin="5,0,0,0" Fill="{StaticResource LandscapeGreen}"
-                                   VerticalAlignment="Center" />
-                    </StackPanel>
+                    <Button x:Name="CustomRangeButton" Grid.Column="3"
+                            Style="{StaticResource PeriodButtonStyle}"
+                            Content="自定" FontSize="16"
+                            Click="CustomRangeButton_Click"
+                            ToolTip="选择任意起止日期" />
+                    <Button x:Name="ModelRankingButton" Grid.Column="4"
+                            Style="{StaticResource PeriodButtonStyle}"
+                            Content="榜" FontSize="16"
+                            Click="ModelRankingButton_Click"
+                            ToolTip="查看当前周期模型排行榜" />
                 </Grid>
 
                 <Grid Grid.Row="2" Margin="5,4,2,0">
@@ -523,6 +594,125 @@
                 </Grid>
 
             </Grid>
+
+            <Popup x:Name="CustomRangePopup"
+                   PlacementTarget="{Binding ElementName=CustomRangeButton}"
+                   Placement="Bottom"
+                   StaysOpen="False"
+                   AllowsTransparency="True">
+                <Border Width="310" Padding="16,13"
+                        Background="{StaticResource PaperWhite}"
+                        BorderBrush="#661A1A1A" BorderThickness="1"
+                        CornerRadius="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="自定日期"
+                                   FontFamily="{StaticResource CalligraphyFont}"
+                                   FontSize="18"
+                                   Foreground="{StaticResource InkDark}" />
+                        <TextBlock Grid.Row="1" Margin="0,2,0,9"
+                                   Text="按需读取更早日志，结束日期包含当天"
+                                   FontFamily="{StaticResource BodyFont}"
+                                   FontSize="11"
+                                   Foreground="{StaticResource InkClear}" />
+                        <Grid Grid.Row="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="22" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="开始" Margin="1,0,0,3"
+                                           FontFamily="{StaticResource BodyFont}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource InkLight}" />
+                                <TextBox x:Name="CustomStartDateTextBox"
+                                         Style="{StaticResource InkDateTextBoxStyle}"
+                                         MaxLength="10" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Margin="0,18,0,0"
+                                       Text="—"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource InkClear}" />
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="结束" Margin="1,0,0,3"
+                                           FontFamily="{StaticResource BodyFont}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource InkLight}" />
+                                <TextBox x:Name="CustomEndDateTextBox"
+                                         Style="{StaticResource InkDateTextBoxStyle}"
+                                         MaxLength="10" />
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel Grid.Row="3" Margin="0,10,0,0" Orientation="Horizontal">
+                            <Button Content="近 7 天" Tag="7"
+                                    Margin="0,0,7,0"
+                                    Style="{StaticResource InkActionButtonStyle}"
+                                    Click="CustomRangePresetButton_Click" />
+                            <Button Content="近 30 天" Tag="30"
+                                    Style="{StaticResource InkActionButtonStyle}"
+                                    Click="CustomRangePresetButton_Click" />
+                            <Button x:Name="ApplyCustomRangeButton"
+                                    Content="应用"
+                                    Margin="7,0,0,0"
+                                    Foreground="{StaticResource SealRed}"
+                                    BorderBrush="#72C41E3A"
+                                    Style="{StaticResource InkActionButtonStyle}"
+                                    Click="ApplyCustomRangeButton_Click" />
+                        </StackPanel>
+                        <TextBlock x:Name="CustomRangeStatusText"
+                                   Grid.Row="4"
+                                   Margin="1,8,0,0"
+                                   Text="格式：2026-07-30"
+                                   TextWrapping="Wrap"
+                                   FontFamily="{StaticResource BodyFont}"
+                                   FontSize="11"
+                                   Foreground="{StaticResource InkClear}" />
+                    </Grid>
+                </Border>
+            </Popup>
+
+            <Popup x:Name="ModelRankingPopup"
+                   PlacementTarget="{Binding ElementName=ModelRankingButton}"
+                   Placement="Bottom"
+                   StaysOpen="False"
+                   AllowsTransparency="True">
+                <Border Width="330" MaxHeight="350" Padding="16,13"
+                        Background="{StaticResource PaperWhite}"
+                        BorderBrush="#661A1A1A" BorderThickness="1"
+                        CornerRadius="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock x:Name="ModelRankingTitle"
+                                   FontFamily="{StaticResource CalligraphyFont}"
+                                   FontSize="18"
+                                   Foreground="{StaticResource InkDark}" />
+                        <TextBlock Grid.Row="1" Margin="0,2,0,6"
+                                   Text="Token · 次数 · 费用占比 · 输入/输出"
+                                   FontFamily="{StaticResource BodyFont}"
+                                   FontSize="11"
+                                   Foreground="{StaticResource InkClear}" />
+                        <ScrollViewer Grid.Row="2" MaxHeight="285"
+                                      Template="{StaticResource InkScrollViewerTemplate}"
+                                      Padding="0,0,2,0"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="ModelRankingPanel" />
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Popup>
 
             <Popup x:Name="ModelDetailsPopup"
                    Placement="Bottom"

@@ -7,6 +7,28 @@ public enum UsagePeriod
     Month
 }
 
+public sealed record UsageDateRange(DateTime Start, DateTime EndExclusive, string Title)
+{
+    public int DayCount => Math.Max(1, (EndExclusive.Date - Start.Date).Days);
+
+    public static UsageDateRange FromInclusiveDates(DateTime start, DateTime end)
+    {
+        var normalizedStart = start.Date;
+        var normalizedEnd = end.Date;
+        if (normalizedEnd < normalizedStart)
+        {
+            throw new ArgumentOutOfRangeException(nameof(end));
+        }
+
+        return new UsageDateRange(
+            normalizedStart,
+            normalizedEnd.AddDays(1),
+            normalizedStart.Year == normalizedEnd.Year
+                ? $"{normalizedStart:MM.dd}—{normalizedEnd:MM.dd}"
+                : $"{normalizedStart:yyyy.MM.dd}—{normalizedEnd:yyyy.MM.dd}");
+    }
+}
+
 public sealed record TokenUsageEvent(
     string Id,
     string Provider,
@@ -62,6 +84,13 @@ public sealed record UsageSnapshot(
         .Select(provider => provider.For(period))
         .Aggregate(new TokenTotals(0, 0, 0), (sum, item) => sum + item);
 
+    public TokenTotals TotalFor(UsageDateRange range) =>
+        SumEvents(EventsFor(range));
+
+    public TokenTotals TotalFor(string provider, UsageDateRange range) =>
+        SumEvents(EventsFor(range).Where(item =>
+            string.Equals(item.Provider, provider, StringComparison.Ordinal)));
+
     /// <summary>
     /// 按所选周期截至当前经过的分钟数，计算平均请求和 Token 速率。
     /// </summary>
@@ -83,11 +112,32 @@ public sealed record UsageSnapshot(
             total.TotalTokens / elapsedMinutes);
     }
 
+    public UsageRates RatesFor(UsageDateRange range, DateTime? now = null)
+    {
+        var total = TotalFor(range);
+        var effectiveEnd = range.EndExclusive <= (now ?? DateTime.Now)
+            ? range.EndExclusive
+            : now ?? DateTime.Now;
+        var elapsedMinutes = Math.Max(1, (effectiveEnd - range.Start).TotalMinutes);
+        return new UsageRates(
+            total.RequestCount,
+            total.RequestCount / elapsedMinutes,
+            total.TotalTokens / elapsedMinutes);
+    }
+
     public IReadOnlyList<ModelUsage> ModelsFor(string provider, UsagePeriod period, DateTime? now = null)
     {
         var start = PeriodStart(period, now ?? DateTime.Now);
-        return Events
-            .Where(item => item.Provider == provider && item.Timestamp.LocalDateTime >= start)
+        return BuildModels(Events.Where(item =>
+            item.Provider == provider &&
+            item.Timestamp.LocalDateTime >= start));
+    }
+
+    public IReadOnlyList<ModelUsage> ModelsFor(string provider, UsageDateRange range) =>
+        BuildModels(EventsFor(range).Where(item => item.Provider == provider));
+
+    private static IReadOnlyList<ModelUsage> BuildModels(IEnumerable<TokenUsageEvent> source) =>
+        source
             .GroupBy(item => string.IsNullOrWhiteSpace(item.Model) ? "未标注模型" : item.Model!)
             .Select(group => new ModelUsage(
                 group.Key,
@@ -100,7 +150,6 @@ public sealed record UsageSnapshot(
                         1))))
             .OrderByDescending(item => item.Totals.TotalTokens)
             .ToArray();
-    }
 
     /// <summary>
     /// 将当前周期截至此刻的用量，与上一周期相同进度的用量进行比较。
@@ -182,14 +231,25 @@ public sealed record UsageSnapshot(
 
         var weekLabels = new[] { "周一", "周二", "周三", "周四", "周五", "周六", "周日" };
         var points = buckets
-            .Select((tokens, index) => new UsageTrendPoint(
-                period switch
-                {
-                    UsagePeriod.Today => $"{index:00} 时",
-                    UsagePeriod.Week => weekLabels[index],
-                    _ => $"{index + 1} 日"
-                },
-                tokens))
+            .Select((tokens, index) =>
+            {
+                var pointStart = period == UsagePeriod.Today
+                    ? start.AddHours(index)
+                    : start.AddDays(index);
+                var pointEnd = period == UsagePeriod.Today
+                    ? pointStart.AddHours(1)
+                    : pointStart.AddDays(1);
+                return new UsageTrendPoint(
+                    period switch
+                    {
+                        UsagePeriod.Today => $"{index:00} 时",
+                        UsagePeriod.Week => weekLabels[index],
+                        _ => $"{index + 1} 日"
+                    },
+                    tokens,
+                    pointStart,
+                    pointEnd);
+            })
             .ToArray();
         var title = period switch
         {
@@ -198,6 +258,51 @@ public sealed record UsageSnapshot(
             _ => "本月 · 每日"
         };
 
+        return new UsageTrend(title, points);
+    }
+
+    /// <summary>
+    /// 自定义范围按跨度自动选择小时、日、周或 30 日分桶，避免折线点过密。
+    /// </summary>
+    public UsageTrend TrendFor(UsageDateRange range)
+    {
+        var bucketDuration = range.DayCount switch
+        {
+            <= 1 => TimeSpan.FromHours(1),
+            <= 45 => TimeSpan.FromDays(1),
+            <= 180 => TimeSpan.FromDays(7),
+            _ => TimeSpan.FromDays(30)
+        };
+        var points = new List<UsageTrendPoint>();
+        for (var pointStart = range.Start; pointStart < range.EndExclusive; pointStart += bucketDuration)
+        {
+            var pointEnd = pointStart + bucketDuration;
+            if (pointEnd > range.EndExclusive)
+            {
+                pointEnd = range.EndExclusive;
+            }
+
+            var label = range.DayCount switch
+            {
+                <= 1 => $"{pointStart:HH} 时",
+                <= 45 => $"{pointStart:MM.dd}",
+                <= 180 => $"{pointStart:MM.dd} 周",
+                _ => $"{pointStart:yyyy.MM}"
+            };
+            points.Add(new UsageTrendPoint(
+                label,
+                SumTokens(pointStart, pointEnd),
+                pointStart,
+                pointEnd));
+        }
+
+        var title = range.DayCount switch
+        {
+            <= 1 => "自定 · 每时",
+            <= 45 => "自定 · 每日",
+            <= 180 => "自定 · 每周",
+            _ => "自定 · 每月"
+        };
         return new UsageTrend(title, points);
     }
 
@@ -211,6 +316,19 @@ public sealed record UsageSnapshot(
     private long SumTokens(DateTime start, DateTime end) => Events
         .Where(item => item.Timestamp.LocalDateTime >= start && item.Timestamp.LocalDateTime < end)
         .Sum(item => item.InputTokens + item.OutputTokens);
+
+    private IEnumerable<TokenUsageEvent> EventsFor(UsageDateRange range) => Events.Where(item =>
+        item.Timestamp.LocalDateTime >= range.Start &&
+        item.Timestamp.LocalDateTime < range.EndExclusive);
+
+    private static TokenTotals SumEvents(IEnumerable<TokenUsageEvent> source) =>
+        source.Aggregate(
+            new TokenTotals(0, 0, 0),
+            (sum, item) => sum + new TokenTotals(
+                item.InputTokens,
+                item.OutputTokens,
+                item.CachedInputTokens,
+                1));
 }
 
 public sealed record UsageRates(long RequestCount, double AverageRpm, double AverageTpm);
@@ -219,7 +337,11 @@ public sealed record ModelUsage(string Model, TokenTotals Totals);
 
 public sealed record UsageTrend(string Title, IReadOnlyList<UsageTrendPoint> Points);
 
-public sealed record UsageTrendPoint(string Label, long Tokens);
+public sealed record UsageTrendPoint(
+    string Label,
+    long Tokens,
+    DateTime Start,
+    DateTime EndExclusive);
 
 public sealed record UsageComparison(
     string Label,

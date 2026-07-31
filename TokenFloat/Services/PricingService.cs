@@ -13,6 +13,9 @@ public sealed class PricingService
     public PricingEstimate Estimate(UsageSnapshot snapshot, UsagePeriod period) =>
         EstimateEvents(EventsForPeriod(snapshot, period));
 
+    public PricingEstimate Estimate(UsageSnapshot snapshot, UsageDateRange range) =>
+        EstimateEvents(EventsForRange(snapshot, range));
+
     public PricingEstimate EstimateModel(
         UsageSnapshot snapshot,
         string provider,
@@ -22,35 +25,42 @@ public sealed class PricingService
             string.Equals(item.Provider, provider, StringComparison.Ordinal) &&
             string.Equals(ModelName(item.Model), model, StringComparison.Ordinal)));
 
+    public PricingEstimate EstimateModel(
+        UsageSnapshot snapshot,
+        string provider,
+        string model,
+        UsageDateRange range) =>
+        EstimateEvents(EventsForRange(snapshot, range).Where(item =>
+            string.Equals(item.Provider, provider, StringComparison.Ordinal) &&
+            string.Equals(ModelName(item.Model), model, StringComparison.Ordinal)));
+
     public PricingTrend Trend(UsageSnapshot snapshot, UsagePeriod period)
     {
         var tokenTrend = snapshot.TrendFor(period);
-        var buckets = tokenTrend.Points.Select(_ => new List<TokenUsageEvent>()).ToArray();
-        var now = DateTime.Now;
-        var start = PeriodStart(period, now);
+        return BuildTrend(tokenTrend, EventsForPeriod(snapshot, period));
+    }
 
-        foreach (var item in EventsForPeriod(snapshot, period))
-        {
-            var timestamp = item.Timestamp.LocalDateTime;
-            var index = period switch
-            {
-                UsagePeriod.Today => timestamp.Hour,
-                UsagePeriod.Week => (timestamp.Date - start).Days,
-                _ => timestamp.Day - 1
-            };
-            if (index >= 0 && index < buckets.Length)
-            {
-                buckets[index].Add(item);
-            }
-        }
+    public PricingTrend Trend(UsageSnapshot snapshot, UsageDateRange range) =>
+        BuildTrend(snapshot.TrendFor(range), EventsForRange(snapshot, range));
 
+    private static PricingTrend BuildTrend(
+        UsageTrend tokenTrend,
+        IEnumerable<TokenUsageEvent> events)
+    {
+        var source = events.ToArray();
         return new PricingTrend(
             tokenTrend.Title,
-            tokenTrend.Points.Select((point, index) => new PricingTrendPoint(
-                point.Label,
-                point.Tokens,
-                buckets[index].Count,
-                EstimateEvents(buckets[index]))).ToArray());
+            tokenTrend.Points.Select(point =>
+            {
+                var bucket = source.Where(item =>
+                    item.Timestamp.LocalDateTime >= point.Start &&
+                    item.Timestamp.LocalDateTime < point.EndExclusive).ToArray();
+                return new PricingTrendPoint(
+                    point.Label,
+                    point.Tokens,
+                    bucket.LongLength,
+                    EstimateEvents(bucket));
+            }).ToArray());
     }
 
     private static PricingEstimate EstimateEvents(IEnumerable<TokenUsageEvent> events)
@@ -104,6 +114,13 @@ public sealed class PricingService
         return snapshot.Events.Where(item =>
             item.Timestamp.LocalDateTime >= start && item.Timestamp.LocalDateTime < end);
     }
+
+    private static IEnumerable<TokenUsageEvent> EventsForRange(
+        UsageSnapshot snapshot,
+        UsageDateRange range) =>
+        snapshot.Events.Where(item =>
+            item.Timestamp.LocalDateTime >= range.Start &&
+            item.Timestamp.LocalDateTime < range.EndExclusive);
 
     private static DateTime PeriodStart(UsagePeriod period, DateTime now) => period switch
     {

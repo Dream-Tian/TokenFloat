@@ -145,4 +145,100 @@ public sealed class UsageAndPricingTests
         Assert.Equal(100, comparison.PreviousTokens);
         Assert.Equal(100d, comparison.ChangePercent);
     }
+
+    [Fact]
+    public void CustomRange_FiltersTotalsModelsAndTrendUsingInclusiveDates()
+    {
+        var range = UsageDateRange.FromInclusiveDates(
+            new DateTime(2026, 7, 2),
+            new DateTime(2026, 7, 4));
+        var offset = TimeZoneInfo.Local.GetUtcOffset(range.Start);
+        var snapshot = new UsageSnapshot(
+            range.Start,
+            [],
+            [
+                new TokenUsageEvent(
+                    "before",
+                    "Codex",
+                    new DateTimeOffset(2026, 7, 1, 23, 59, 0, offset),
+                    9_000,
+                    0,
+                    0,
+                    "gpt-5.4"),
+                new TokenUsageEvent(
+                    "first",
+                    "Codex",
+                    new DateTimeOffset(2026, 7, 2, 0, 0, 0, offset),
+                    1_000,
+                    200,
+                    100,
+                    "gpt-5.4"),
+                new TokenUsageEvent(
+                    "last",
+                    "Claude",
+                    new DateTimeOffset(2026, 7, 4, 23, 59, 0, offset),
+                    500,
+                    300,
+                    0,
+                    "claude-opus-5"),
+                new TokenUsageEvent(
+                    "after",
+                    "Codex",
+                    new DateTimeOffset(2026, 7, 5, 0, 0, 0, offset),
+                    8_000,
+                    0,
+                    0,
+                    "gpt-5.4")
+            ]);
+
+        var totals = snapshot.TotalFor(range);
+        var codexModels = snapshot.ModelsFor("Codex", range);
+        var trend = snapshot.TrendFor(range);
+
+        Assert.Equal(2_000, totals.TotalTokens);
+        Assert.Equal(2, totals.RequestCount);
+        Assert.Single(codexModels);
+        Assert.Equal(1_200, codexModels[0].Totals.TotalTokens);
+        Assert.Equal(totals.TotalTokens, trend.Points.Sum(point => point.Tokens));
+        Assert.Equal(range.Start, trend.Points[0].Start);
+        Assert.Equal(range.EndExclusive, trend.Points[^1].EndExclusive);
+    }
+
+    [Fact]
+    public void CustomRangePricingTrend_MatchesRangeEstimate()
+    {
+        var range = UsageDateRange.FromInclusiveDates(
+            new DateTime(2026, 7, 1),
+            new DateTime(2026, 7, 7));
+        var offset = TimeZoneInfo.Local.GetUtcOffset(range.Start);
+        var snapshot = new UsageSnapshot(
+            range.Start,
+            [],
+            [
+                new TokenUsageEvent(
+                    "one",
+                    "Codex",
+                    new DateTimeOffset(2026, 7, 2, 8, 0, 0, offset),
+                    1_000_000,
+                    200_000,
+                    100_000,
+                    "gpt-5.4"),
+                new TokenUsageEvent(
+                    "two",
+                    "Codex",
+                    new DateTimeOffset(2026, 7, 6, 18, 0, 0, offset),
+                    500_000,
+                    100_000,
+                    0,
+                    "gpt-5.4")
+            ]);
+        var pricingService = new PricingService();
+
+        var estimate = pricingService.Estimate(snapshot, range);
+        var trend = pricingService.Trend(snapshot, range);
+
+        Assert.Equal(estimate.EstimatedUsd, trend.Points.Sum(point => point.Pricing.EstimatedUsd));
+        Assert.Equal(2, trend.Points.Sum(point => point.RequestCount));
+        Assert.Equal(snapshot.TotalFor(range).TotalTokens, trend.Points.Sum(point => point.Tokens));
+    }
 }

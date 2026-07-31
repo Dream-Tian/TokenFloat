@@ -52,7 +52,15 @@ public sealed class UsageLogService
     /// 检查本月和上月日志，复用未变化文件的持久索引，并在后台更新汇总。
     /// </summary>
     public Task<UsageSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) =>
-        Task.Run(() => LoadSnapshot(cancellationToken), cancellationToken);
+        Task.Run(() => LoadSnapshot(null, cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// 自定义范围需要更早数据时按需扩展扫描，日常刷新仍只维护最近两个月。
+    /// </summary>
+    public Task<UsageSnapshot> LoadSnapshotAsync(
+        DateTime requestedHistoryStart,
+        CancellationToken cancellationToken = default) =>
+        Task.Run(() => LoadSnapshot(requestedHistoryStart.Date, cancellationToken), cancellationToken);
 
     /// <summary>
     /// 清空内存和磁盘统计索引；下一次加载会重新扫描原始日志。
@@ -73,10 +81,14 @@ public sealed class UsageLogService
         }
     }
 
-    private UsageSnapshot LoadSnapshot(CancellationToken cancellationToken)
+    private UsageSnapshot LoadSnapshot(DateTime? requestedHistoryStart, CancellationToken cancellationToken)
     {
         var monthStart = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-        var historyStart = monthStart.AddMonths(-1);
+        var defaultHistoryStart = monthStart.AddMonths(-1);
+        var historyStart = requestedHistoryStart is not null &&
+                           requestedHistoryStart.Value < defaultHistoryStart
+            ? requestedHistoryStart.Value
+            : defaultHistoryStart;
         var currentFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var events = new List<TokenUsageEvent>();
 
