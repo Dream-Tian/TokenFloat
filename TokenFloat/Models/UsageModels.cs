@@ -38,13 +38,16 @@ public sealed record TokenUsageEvent(
     long CachedInputTokens,
     string? Model,
     long CacheWriteInputTokens = 0,
-    long CacheWriteOneHourInputTokens = 0);
+    long CacheWriteOneHourInputTokens = 0,
+    long Quota = 0,
+    long RequestCount = 1);
 
 public sealed record TokenTotals(
     long InputTokens,
     long OutputTokens,
     long CachedInputTokens,
-    long RequestCount = 0)
+    long RequestCount = 0,
+    long Quota = 0)
 {
     public long EffectiveInputTokens => Math.Max(0, InputTokens - CachedInputTokens);
 
@@ -57,7 +60,8 @@ public sealed record TokenTotals(
             left.InputTokens + right.InputTokens,
             left.OutputTokens + right.OutputTokens,
             left.CachedInputTokens + right.CachedInputTokens,
-            left.RequestCount + right.RequestCount);
+            left.RequestCount + right.RequestCount,
+            left.Quota + right.Quota);
 }
 
 public sealed record ProviderUsage(
@@ -78,7 +82,9 @@ public sealed record ProviderUsage(
 public sealed record UsageSnapshot(
     DateTime UpdatedAt,
     IReadOnlyList<ProviderUsage> Providers,
-    IReadOnlyList<TokenUsageEvent> Events)
+    IReadOnlyList<TokenUsageEvent> Events,
+    string? SourceMessage = null,
+    decimal QuotaPerUnit = 500_000m)
 {
     public TokenTotals TotalFor(UsagePeriod period) => Providers
         .Select(provider => provider.For(period))
@@ -92,17 +98,12 @@ public sealed record UsageSnapshot(
             string.Equals(item.Provider, provider, StringComparison.Ordinal)));
 
     /// <summary>
-    /// 按所选周期截至当前经过的分钟数，计算平均请求和 Token 速率。
+    /// 按 NewAPI 的 UTC 周期边界计算平均请求和 Token 速率。
     /// </summary>
     public UsageRates RatesFor(UsagePeriod period, DateTime? now = null)
     {
         var current = now ?? DateTime.Now;
-        var start = period switch
-        {
-            UsagePeriod.Today => current.Date,
-            UsagePeriod.Week => current.Date.AddDays(-(((int)current.DayOfWeek + 6) % 7)),
-            _ => new DateTime(current.Year, current.Month, 1)
-        };
+        var start = UtcPeriodStartInLocalTime(period, current);
         var elapsedMinutes = Math.Max(1, (current - start).TotalMinutes);
         var total = TotalFor(period);
 
@@ -136,6 +137,15 @@ public sealed record UsageSnapshot(
     public IReadOnlyList<ModelUsage> ModelsFor(string provider, UsageDateRange range) =>
         BuildModels(EventsFor(range).Where(item => item.Provider == provider));
 
+    public IReadOnlyList<ModelUsage> ModelsFor(UsagePeriod period, DateTime? now = null)
+    {
+        var start = PeriodStart(period, now ?? DateTime.Now);
+        return BuildModels(Events.Where(item => item.Timestamp.LocalDateTime >= start));
+    }
+
+    public IReadOnlyList<ModelUsage> ModelsFor(UsageDateRange range) =>
+        BuildModels(EventsFor(range));
+
     private static IReadOnlyList<ModelUsage> BuildModels(IEnumerable<TokenUsageEvent> source) =>
         source
             .GroupBy(item => string.IsNullOrWhiteSpace(item.Model) ? "未标注模型" : item.Model!)
@@ -147,7 +157,8 @@ public sealed record UsageSnapshot(
                         item.InputTokens,
                         item.OutputTokens,
                         item.CachedInputTokens,
-                        1))))
+                        Math.Max(0, item.RequestCount),
+                        item.Quota))))
             .OrderByDescending(item => item.Totals.TotalTokens)
             .ToArray();
 
@@ -313,6 +324,18 @@ public sealed record UsageSnapshot(
         _ => new DateTime(current.Year, current.Month, 1)
     };
 
+    private static DateTime UtcPeriodStartInLocalTime(UsagePeriod period, DateTime current)
+    {
+        var utc = current.ToUniversalTime();
+        var utcStart = period switch
+        {
+            UsagePeriod.Today => utc.Date,
+            UsagePeriod.Week => utc.Date.AddDays(-(((int)utc.DayOfWeek + 6) % 7)),
+            _ => new DateTime(utc.Year, utc.Month, 1, 0, 0, 0, DateTimeKind.Utc)
+        };
+        return utcStart.ToLocalTime();
+    }
+
     private long SumTokens(DateTime start, DateTime end) => Events
         .Where(item => item.Timestamp.LocalDateTime >= start && item.Timestamp.LocalDateTime < end)
         .Sum(item => item.InputTokens + item.OutputTokens);
@@ -328,7 +351,8 @@ public sealed record UsageSnapshot(
                 item.InputTokens,
                 item.OutputTokens,
                 item.CachedInputTokens,
-                1));
+                Math.Max(0, item.RequestCount),
+                item.Quota));
 }
 
 public sealed record UsageRates(long RequestCount, double AverageRpm, double AverageTpm);

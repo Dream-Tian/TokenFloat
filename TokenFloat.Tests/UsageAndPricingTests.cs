@@ -44,6 +44,54 @@ public sealed class UsageAndPricingTests
     }
 
     [Fact]
+    public void Estimate_UsesNewApiQuotaAsTotalConsumption()
+    {
+        var snapshot = UsageLogService.BuildSnapshot(
+            [
+                new TokenUsageEvent(
+                    "newapi",
+                    "NewAPI",
+                    DateTimeOffset.Now,
+                    1_200,
+                    300,
+                    0,
+                    "gpt-test",
+                    Quota: 250_000)
+            ],
+            quotaPerUnit: 500_000m);
+
+        var estimate = new PricingService().Estimate(snapshot, UsagePeriod.Today);
+
+        Assert.True(estimate.IsQuotaBased);
+        Assert.Equal(0.5m, estimate.EstimatedUsd);
+        Assert.Equal(250_000m, estimate.Quota);
+        Assert.Equal(250_000, snapshot.TotalFor(UsagePeriod.Today).Quota);
+    }
+
+    [Fact]
+    public void Estimate_UsesProviderQuotaWhenOnlyStatTotalsExist()
+    {
+        var snapshot = new UsageSnapshot(
+            DateTime.Now,
+            [
+                new ProviderUsage(
+                    "NewAPI",
+                    new TokenTotals(0, 0, 0, 0, 1_000_000),
+                    new TokenTotals(0, 0, 0, 0, 2_000_000),
+                    new TokenTotals(0, 0, 0, 0, 3_000_000),
+                    true)
+            ],
+            [],
+            QuotaPerUnit: 500_000m);
+
+        var pricing = new PricingService();
+
+        Assert.Equal(2m, pricing.Estimate(snapshot, UsagePeriod.Today).EstimatedUsd);
+        Assert.Equal(4m, pricing.Estimate(snapshot, UsagePeriod.Week).EstimatedUsd);
+        Assert.Equal(6m, pricing.Estimate(snapshot, UsagePeriod.Month).EstimatedUsd);
+    }
+
+    [Fact]
     public void Estimate_DoesNotChargeUnknownModels()
     {
         var snapshot = UsageLogService.BuildSnapshot([

@@ -43,6 +43,11 @@ public partial class SettingsWindow : Window
         ManifestUrlTextBox.Text = settings.ManifestUrl;
         var appSettings = _appSettingsService.Settings;
         RefreshOnlyVisibleCheckBox.IsChecked = appSettings.RefreshOnlyWhenVisible;
+        NewApiBaseUrlTextBox.Text = appSettings.NewApiBaseUrl;
+        NewApiTokenPasswordBox.Password = appSettings.NewApiAccessToken;
+        NewApiUserIdTextBox.Text = appSettings.NewApiUserId > 0
+            ? appSettings.NewApiUserId.ToString()
+            : string.Empty;
         RefreshIntervalComboBox.SelectedItem = RefreshIntervalComboBox.Items
             .OfType<ComboBoxItem>()
             .FirstOrDefault(item =>
@@ -70,6 +75,76 @@ public partial class SettingsWindow : Window
 
     private void RefreshOnlyVisibleCheckBox_Click(object sender, RoutedEventArgs e) =>
         SaveRefreshSettings();
+
+    private async void SaveNewApiButton_Click(object sender, RoutedEventArgs e)
+    {
+        var baseUrl = NewApiBaseUrlTextBox.Text.Trim();
+        var accessToken = NewApiTokenPasswordBox.Password.Trim();
+        var userIdText = NewApiUserIdTextBox.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(baseUrl) && string.IsNullOrWhiteSpace(accessToken) && string.IsNullOrWhiteSpace(userIdText))
+        {
+            _appSettingsService.SetNewApi(string.Empty, string.Empty, 0);
+            ShowStatus("NewAPI 设置已清空", true);
+            return;
+        }
+
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) ||
+            uri.Scheme is not ("http" or "https"))
+        {
+            ShowStatus("NewAPI 服务地址需要以 http:// 或 https:// 开头", false);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(accessToken))
+        {
+            ShowStatus("NewAPI 系统 Token 不能为空", false);
+            return;
+        }
+
+        var userId = 0;
+        if (!string.IsNullOrWhiteSpace(userIdText) &&
+            (!int.TryParse(userIdText, out userId) || userId < 0))
+        {
+            ShowStatus("用户 ID 需要是正整数；不需要时可留空", false);
+            return;
+        }
+
+        _appSettingsService.SetNewApi(
+            uri.ToString().TrimEnd('/'),
+            accessToken,
+            userId);
+        if (sender is System.Windows.Controls.Button button)
+        {
+            button.IsEnabled = false;
+        }
+
+        ShowStatus("NewAPI 设置已保存，正在刷新远端汇总…", true);
+        try
+        {
+            if (await _clearUsageCache())
+            {
+                RefreshDataUsage();
+                ShowStatus("NewAPI 设置已保存，汇总已刷新", true);
+            }
+            else
+            {
+                ShowStatus("NewAPI 设置已保存，当前统计正在刷新", true);
+            }
+        }
+        catch (Exception exception)
+        {
+            _errorLogService.Write("设置页刷新 NewAPI 汇总", exception);
+            ShowStatus($"NewAPI 设置已保存，但刷新失败：{exception.Message}", false);
+        }
+        finally
+        {
+            if (sender is System.Windows.Controls.Button restoreButton)
+            {
+                restoreButton.IsEnabled = true;
+            }
+        }
+    }
 
     private void SaveRefreshSettings()
     {
@@ -100,7 +175,7 @@ public partial class SettingsWindow : Window
     }
 
     /// <summary>
-    /// 清除统计索引并从原始日志重建，完成后刷新占用信息。
+    /// 清除统计缓存并从 NewAPI 重拉日志，完成后刷新占用信息。
     /// </summary>
     private async void ClearUsageCacheButton_Click(object sender, RoutedEventArgs e)
     {

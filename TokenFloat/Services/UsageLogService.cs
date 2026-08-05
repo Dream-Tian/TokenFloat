@@ -1,18 +1,26 @@
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using TokenFloat.Models;
 
 namespace TokenFloat.Services;
 
 public sealed class UsageLogService
 {
-    private const int CacheVersion = 6;
+    private const int CacheVersion = 7;
+    private const int ConsumeLogType = 2;
+    private const string ProviderName = "NewAPI";
+    private const decimal DefaultQuotaPerUnit = 500_000m;
 
-    private static readonly JsonDocumentOptions JsonOptions = new()
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        AllowTrailingCommas = true,
-        CommentHandling = JsonCommentHandling.Skip
+        PropertyNameCaseInsensitive = true
     };
 
     private static readonly JsonSerializerOptions CacheJsonOptions = new()
@@ -20,55 +28,57 @@ public sealed class UsageLogService
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    private readonly Dictionary<string, CachedLogFile> _cache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly string _userProfile = ResolveFolder(
-        "USERPROFILE",
-        Environment.SpecialFolder.UserProfile);
+    private readonly AppSettingsService _settingsService;
+    private readonly HttpClient _httpClient;
     private readonly string _cachePath = Path.Combine(
         ResolveFolder("LOCALAPPDATA", Environment.SpecialFolder.LocalApplicationData),
         "TokenFloat",
         $"usage-index-v{CacheVersion}.json.gz");
-    private bool _cacheDirty;
+    private PersistentCache? _cache;
 
-    public UsageLogService()
+    public UsageLogService(AppSettingsService? settingsService = null, HttpClient? httpClient = null)
     {
+        _settingsService = settingsService ?? new AppSettingsService();
+        _httpClient = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
         LoadPersistentCache();
     }
 
     /// <summary>
-    /// 返回磁盘索引中的上次结果，让窗口启动后可以立即显示已有数据。
+    /// 返回上次从 NewAPI 拉取并压缩保存的汇总，供窗口启动后立即展示。
     /// </summary>
     public UsageSnapshot? GetCachedSnapshot()
     {
-        if (_cache.Count == 0)
+        var settings = _settingsService.Settings;
+        if (_cache is null || _cache.SourceKey != BuildSourceKey(settings))
         {
             return null;
         }
 
-        return BuildSnapshot(_cache.Values.SelectMany(item => item.Events));
+        return _cache.Providers.Count > 0
+            ? new UsageSnapshot(DateTime.Now, _cache.Providers, _cache.Events, _cache.SourceMessage, _cache.QuotaPerUnit)
+            : BuildSnapshot(_cache.Events, _cache.SourceMessage, _cache.QuotaPerUnit);
     }
 
     /// <summary>
-    /// 检查本月和上月日志，复用未变化文件的持久索引，并在后台更新汇总。
+    /// 从 NewAPI 读取个人消费汇总，并生成当前用量快照。
     /// </summary>
     public Task<UsageSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) =>
-        Task.Run(() => LoadSnapshot(null, cancellationToken), cancellationToken);
+        LoadSnapshotAsync(null, cancellationToken);
 
     /// <summary>
-    /// 自定义范围需要更早数据时按需扩展扫描，日常刷新仍只维护最近两个月。
+    /// 自定义范围需要更早数据时，向 NewAPI 请求从指定日期开始的小时级汇总。
     /// </summary>
     public Task<UsageSnapshot> LoadSnapshotAsync(
         DateTime requestedHistoryStart,
         CancellationToken cancellationToken = default) =>
-        Task.Run(() => LoadSnapshot(requestedHistoryStart.Date, cancellationToken), cancellationToken);
+        LoadSnapshotAsync(requestedHistoryStart.Date, cancellationToken);
 
     /// <summary>
-    /// 清空内存和磁盘统计索引；下一次加载会重新扫描原始日志。
+    /// 清空本地压缩缓存；下一次刷新会重新从 NewAPI 拉取汇总。
     /// </summary>
     public void ClearCache()
     {
-        _cache.Clear();
-        _cacheDirty = false;
+        _cache = null;
         var folder = Path.GetDirectoryName(_cachePath)!;
         if (!Directory.Exists(folder))
         {
@@ -81,55 +91,63 @@ public sealed class UsageLogService
         }
     }
 
-    private UsageSnapshot LoadSnapshot(DateTime? requestedHistoryStart, CancellationToken cancellationToken)
+    private async Task<UsageSnapshot> LoadSnapshotAsync(
+        DateTime? requestedHistoryStart,
+        CancellationToken cancellationToken)
     {
-        var monthStart = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-        var defaultHistoryStart = monthStart.AddMonths(-1);
-        var historyStart = requestedHistoryStart is not null &&
-                           requestedHistoryStart.Value < defaultHistoryStart
-            ? requestedHistoryStart.Value
-            : defaultHistoryStart;
-        var currentFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var events = new List<TokenUsageEvent>();
-
-        events.AddRange(ReadFiles(
-            Path.Combine(_userProfile, ".codex", "sessions"),
-            "*.jsonl",
-            ParseCodexFile,
-            historyStart,
-            currentFiles,
-            cancellationToken));
-        events.AddRange(ReadFiles(
-            Path.Combine(_userProfile, ".claude", "projects"),
-            "*.jsonl",
-            ParseClaudeFile,
-            historyStart,
-            currentFiles,
-            cancellationToken));
-        events.AddRange(ReadGeminiFiles(historyStart, currentFiles, cancellationToken));
-
-        foreach (var stalePath in _cache.Keys.Where(path => !currentFiles.Contains(path)).ToArray())
+        var settings = _settingsService.Settings;
+        if (!settings.IsNewApiConfigured)
         {
-            _cache.Remove(stalePath);
-            _cacheDirty = true;
+            return BuildSnapshot([], "请在设置中填写 NewAPI 地址和系统 Token", DefaultQuotaPerUnit);
         }
 
-        SavePersistentCache();
-        return BuildSnapshot(events);
+        try
+        {
+            var now = DateTime.Now;
+            var monthStart = new DateTime(now.Year, now.Month, 1);
+            var defaultHistoryStart = monthStart.AddMonths(-1);
+            var historyStart = requestedHistoryStart is not null &&
+                               requestedHistoryStart.Value < defaultHistoryStart
+                ? requestedHistoryStart.Value
+                : defaultHistoryStart;
+            var quotaPerUnit = await FetchQuotaPerUnitAsync(settings, cancellationToken);
+            var rows = await FetchQuotaDataAsync(settings, historyStart, now, cancellationToken);
+            var events = rows.Select(ToEvent).ToArray();
+            var message = $"NewAPI · {NormalizeBaseUrl(settings.NewApiBaseUrl)} · {now:HH:mm:ss}";
+            var snapshot = BuildSnapshot(events, message, quotaPerUnit);
+            SavePersistentCache(settings, snapshot.Providers, snapshot.Events, message, quotaPerUnit);
+            return snapshot;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException or UriFormatException)
+        {
+            var message = $"读取 NewAPI 失败：{exception.Message}";
+            if (GetCachedSnapshot() is { } cached)
+            {
+                return cached with { SourceMessage = message };
+            }
+
+            return BuildSnapshot([], message, DefaultQuotaPerUnit);
+        }
     }
 
-    internal static UsageSnapshot BuildSnapshot(IEnumerable<TokenUsageEvent> source)
+    internal static UsageSnapshot BuildSnapshot(
+        IEnumerable<TokenUsageEvent> source,
+        string? sourceMessage = null,
+        decimal quotaPerUnit = DefaultQuotaPerUnit)
     {
         var uniqueEvents = source
             .GroupBy(item => item.Id, StringComparer.Ordinal)
-            .Select(group => group.MaxBy(item => item.InputTokens + item.OutputTokens)!)
+            .Select(group => group.MaxBy(item => item.InputTokens + item.OutputTokens + item.Quota + item.RequestCount)!)
             .ToArray();
 
         var now = DateTime.Now;
         var todayStart = now.Date;
         var weekStart = todayStart.AddDays(-(((int)todayStart.DayOfWeek + 6) % 7));
         var monthStart = new DateTime(now.Year, now.Month, 1);
-        var providers = new[] { "Codex", "Claude", "Gemini" }
+        var providers = uniqueEvents
+            .Select(item => string.IsNullOrWhiteSpace(item.Provider) ? ProviderName : item.Provider)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
             .Select(provider => BuildProviderUsage(
                 provider,
                 uniqueEvents.Where(item => item.Provider == provider),
@@ -138,428 +156,110 @@ public sealed class UsageLogService
                 monthStart))
             .ToArray();
 
-        return new UsageSnapshot(DateTime.Now, providers, uniqueEvents);
+        return new UsageSnapshot(DateTime.Now, providers, uniqueEvents, sourceMessage, quotaPerUnit);
     }
 
-    private IEnumerable<TokenUsageEvent> ReadFiles(
-        string root,
-        string pattern,
-        Func<string, IReadOnlyList<TokenUsageEvent>> parser,
-        DateTime monthStart,
-        ISet<string> currentFiles,
-        CancellationToken cancellationToken)
+    private async Task<decimal> FetchQuotaPerUnitAsync(AppSettings settings, CancellationToken cancellationToken)
     {
-        foreach (var file in EnumerateFiles(root, pattern, monthStart))
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            currentFiles.Add(file);
-            foreach (var item in ReadCachedFile(file, parser))
+            using var response = await _httpClient.GetAsync(BuildUri(settings, "api/status"), cancellationToken);
+            if (!response.IsSuccessStatusCode)
             {
-                yield return item;
+                return DefaultQuotaPerUnit;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            if (document.RootElement.TryGetProperty("quota_per_unit", out var quotaElement) &&
+                quotaElement.ValueKind == JsonValueKind.Number &&
+                quotaElement.TryGetDecimal(out var quotaPerUnit) &&
+                quotaPerUnit > 0)
+            {
+                return quotaPerUnit;
             }
         }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
+        {
+        }
+
+        return DefaultQuotaPerUnit;
     }
 
-    /// <summary>
-    /// Codex 会重复写入相同累计值；只在累计值变化时记录本次用量。
-    /// </summary>
-    private IReadOnlyList<TokenUsageEvent> ParseCodexFile(string path)
+    private async Task<IReadOnlyList<NewApiQuotaData>> FetchQuotaDataAsync(
+        AppSettings settings,
+        DateTime start,
+        DateTime end,
+        CancellationToken cancellationToken)
     {
-        var result = new List<TokenUsageEvent>();
-        using var stream = OpenSharedRead(path);
-        using var reader = new StreamReader(stream);
-        long? previousCumulativeTokens = null;
-        string? currentModel = null;
-        var lineNumber = 0;
-
-        while (reader.ReadLine() is { } line)
+        var result = new List<NewApiQuotaData>();
+        for (var cursor = start; cursor < end;)
         {
-            lineNumber++;
-            if (!TryParseJsonLine(line, out var document))
+            var chunkEnd = cursor.AddDays(30);
+            if (chunkEnd > end)
             {
-                continue;
+                chunkEnd = end;
             }
 
-            using (document)
-            {
-                var root = document.RootElement;
-                if (HasString(root, "type", "turn_context") &&
-                    TryGet(root, "payload", out var turnContext))
-                {
-                    currentModel = GetString(turnContext, "model") ?? currentModel;
-                }
-
-                if (!TryGetCodexUsage(root, out var usage, out var totalUsage, out var timestamp))
-                {
-                    continue;
-                }
-
-                var cumulativeTokens = GetInt64(totalUsage, "total_tokens");
-                if (previousCumulativeTokens.HasValue && cumulativeTokens == previousCumulativeTokens.Value)
-                {
-                    continue;
-                }
-
-                previousCumulativeTokens = cumulativeTokens;
-                var input = GetInt64(usage, "input_tokens");
-                var output = GetInt64(usage, "output_tokens");
-                var total = GetInt64(usage, "total_tokens");
-                if (input == 0 && output == 0 && total > 0)
-                {
-                    input = total;
-                }
-
-                result.Add(new TokenUsageEvent(
-                    $"codex:{Path.GetFileName(path)}:{lineNumber}",
-                    "Codex",
-                    timestamp,
-                    input,
-                    output,
-                    GetInt64(usage, "cached_input_tokens"),
-                    currentModel));
-            }
+            result.AddRange(await FetchQuotaDataChunkAsync(settings, cursor, chunkEnd, cancellationToken));
+            cursor = chunkEnd.AddSeconds(1);
         }
 
         return result;
     }
 
-    private static bool TryGetCodexUsage(
-        JsonElement root,
-        out JsonElement usage,
-        out JsonElement totalUsage,
-        out DateTimeOffset timestamp)
+    private async Task<IReadOnlyList<NewApiQuotaData>> FetchQuotaDataChunkAsync(
+        AppSettings settings,
+        DateTime start,
+        DateTime end,
+        CancellationToken cancellationToken)
     {
-        if (HasString(root, "type", "event_msg") &&
-            TryGet(root, "payload", out var payload) &&
-            HasString(payload, "type", "token_count") &&
-            TryGet(payload, "info", out var info) &&
-            TryGet(info, "last_token_usage", out usage) &&
-            TryGet(info, "total_token_usage", out totalUsage) &&
-            TryReadTimestamp(root, out timestamp))
+        var startTimestamp = new DateTimeOffset(start).ToUnixTimeSeconds();
+        var endTimestamp = new DateTimeOffset(end).ToUnixTimeSeconds();
+        var uri = BuildUri(
+            settings,
+            "api/data/self",
+            ("start_timestamp", startTimestamp.ToString(CultureInfo.InvariantCulture)),
+            ("end_timestamp", endTimestamp.ToString(CultureInfo.InvariantCulture)));
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        ApplyAuth(request, settings);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var envelope = await JsonSerializer.DeserializeAsync<ApiEnvelope<List<NewApiQuotaData>>>(
+            stream,
+            JsonOptions,
+            cancellationToken);
+        if (envelope is null)
         {
-            return true;
+            throw new InvalidOperationException("NewAPI 返回为空");
         }
 
-        usage = default;
-        totalUsage = default;
-        timestamp = default;
-        return false;
+        if (!envelope.IsSuccess)
+        {
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(envelope.Message)
+                ? "NewAPI 返回失败"
+                : envelope.Message);
+        }
+
+        return envelope.Data ?? [];
     }
 
-    private IReadOnlyList<TokenUsageEvent> ParseClaudeFile(string path)
+    private static TokenUsageEvent ToEvent(NewApiQuotaData row)
     {
-        var candidates = ParseJsonLines(path, ParseClaudeLine);
-        return candidates
-            .GroupBy(item => item.Id, StringComparer.Ordinal)
-            .Select(group => group.MaxBy(item => item.InputTokens + item.OutputTokens)!)
-            .ToArray();
-    }
-
-    private static TokenUsageEvent? ParseClaudeLine(JsonElement root, string path, int lineNumber)
-    {
-        if (!HasString(root, "type", "assistant") ||
-            !TryGet(root, "message", out var message) ||
-            !TryGet(message, "usage", out var usage) ||
-            !TryReadTimestamp(root, out var timestamp))
-        {
-            return null;
-        }
-
-        var model = GetString(message, "model");
-        if (string.Equals(model, "<synthetic>", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var messageId = GetString(message, "id");
-        var id = string.IsNullOrWhiteSpace(messageId)
-            ? $"claude:{Path.GetFileName(path)}:{lineNumber}"
-            : $"claude:{messageId}";
-
-        var cacheWrite = GetInt64(usage, "cache_creation_input_tokens");
-        var cacheWriteFiveMinutes = cacheWrite;
-        var cacheWriteOneHour = 0L;
-        if (TryGet(usage, "cache_creation", out var cacheCreation))
-        {
-            var detailedFiveMinutes = GetInt64(cacheCreation, "ephemeral_5m_input_tokens");
-            var detailedOneHour = GetInt64(cacheCreation, "ephemeral_1h_input_tokens");
-            if (detailedFiveMinutes > 0 || detailedOneHour > 0)
-            {
-                cacheWriteFiveMinutes = detailedFiveMinutes;
-                cacheWriteOneHour = detailedOneHour;
-            }
-        }
-
+        var timestamp = DateTimeOffset.FromUnixTimeSeconds(Math.Max(0, row.CreatedAt)).ToLocalTime();
+        var model = string.IsNullOrWhiteSpace(row.ModelName) ? "未标注模型" : row.ModelName;
         return new TokenUsageEvent(
-            id,
-            "Claude",
+            $"newapi-data:{row.CreatedAt}:{model}",
+            ProviderName,
             timestamp,
-            GetInt64(usage, "input_tokens"),
-            GetInt64(usage, "output_tokens"),
-            GetInt64(usage, "cache_read_input_tokens"),
+            Math.Max(0, row.TokenUsed),
+            0,
+            0,
             model,
-            cacheWriteFiveMinutes,
-            cacheWriteOneHour);
-    }
-
-    private IReadOnlyList<TokenUsageEvent> ParseJsonLines(
-        string path,
-        Func<JsonElement, string, int, TokenUsageEvent?> parser)
-    {
-        var result = new List<TokenUsageEvent>();
-        using var stream = OpenSharedRead(path);
-        using var reader = new StreamReader(stream);
-        var lineNumber = 0;
-
-        while (reader.ReadLine() is { } line)
-        {
-            lineNumber++;
-            if (!TryParseJsonLine(line, out var document))
-            {
-                continue;
-            }
-
-            using (document)
-            {
-                var item = parser(document.RootElement, path, lineNumber);
-                if (item is not null)
-                {
-                    result.Add(item);
-                }
-            }
-        }
-
-        return result;
-    }
-
-    private static bool TryParseJsonLine(string line, out JsonDocument document)
-    {
-        try
-        {
-            document = JsonDocument.Parse(line, JsonOptions);
-            return true;
-        }
-        catch (JsonException)
-        {
-            document = null!;
-            return false;
-        }
-    }
-
-    private IEnumerable<TokenUsageEvent> ReadGeminiFiles(
-        DateTime monthStart,
-        ISet<string> currentFiles,
-        CancellationToken cancellationToken)
-    {
-        var roots = new[]
-        {
-            Path.Combine(_userProfile, ".gemini", "tmp"),
-            Path.Combine(_userProfile, ".gemini", "history")
-        };
-
-        foreach (var root in roots)
-        {
-            foreach (var pattern in new[] { "*.json", "*.jsonl" })
-            {
-                foreach (var item in ReadFiles(
-                             root,
-                             pattern,
-                             ParseGeminiFile,
-                             monthStart,
-                             currentFiles,
-                             cancellationToken))
-                {
-                    yield return item;
-                }
-            }
-        }
-    }
-
-    private IReadOnlyList<TokenUsageEvent> ParseGeminiFile(string path)
-    {
-        var result = new List<TokenUsageEvent>();
-        var fallbackTimestamp = new DateTimeOffset(File.GetLastWriteTime(path));
-        using var stream = OpenSharedRead(path);
-
-        try
-        {
-            using var document = JsonDocument.Parse(stream, JsonOptions);
-            CollectGeminiUsage(document.RootElement, path, fallbackTimestamp, result);
-        }
-        catch (JsonException)
-        {
-            foreach (var item in ParseJsonLines(path, (root, file, line) =>
-                         ParseGeminiRoot(root, file, line, fallbackTimestamp)))
-            {
-                result.Add(item);
-            }
-        }
-
-        return result;
-    }
-
-    private TokenUsageEvent? ParseGeminiRoot(
-        JsonElement root,
-        string path,
-        int lineNumber,
-        DateTimeOffset fallbackTimestamp)
-    {
-        var items = new List<TokenUsageEvent>();
-        CollectGeminiUsage(root, $"{path}:{lineNumber}", fallbackTimestamp, items);
-        return items.FirstOrDefault();
-    }
-
-    private void CollectGeminiUsage(
-        JsonElement element,
-        string sourceId,
-        DateTimeOffset inheritedTimestamp,
-        ICollection<TokenUsageEvent> result)
-    {
-        if (element.ValueKind == JsonValueKind.Object)
-        {
-            var timestamp = TryReadTimestamp(element, out var ownTimestamp)
-                ? ownTimestamp
-                : inheritedTimestamp;
-
-            if (TryGet(element, "usageMetadata", out var usage))
-            {
-                var input = FirstInt64(usage, "promptTokenCount", "inputTokenCount", "prompt_tokens");
-                var output = FirstInt64(usage, "candidatesTokenCount", "outputTokenCount", "completion_tokens");
-                var total = GetInt64(usage, "totalTokenCount");
-                if (input == 0 && output == 0 && total > 0)
-                {
-                    input = total;
-                }
-
-                if (input > 0 || output > 0)
-                {
-                    result.Add(new TokenUsageEvent(
-                        $"gemini:{sourceId}:{result.Count}",
-                        "Gemini",
-                        timestamp,
-                        input,
-                        output,
-                        FirstInt64(usage, "cachedContentTokenCount", "cached_input_tokens"),
-                        GetString(element, "model")));
-                }
-            }
-
-            foreach (var property in element.EnumerateObject())
-            {
-                CollectGeminiUsage(property.Value, sourceId, timestamp, result);
-            }
-        }
-        else if (element.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in element.EnumerateArray())
-            {
-                CollectGeminiUsage(item, sourceId, inheritedTimestamp, result);
-            }
-        }
-    }
-
-    private IReadOnlyList<TokenUsageEvent> ReadCachedFile(
-        string path,
-        Func<string, IReadOnlyList<TokenUsageEvent>> parser)
-    {
-        try
-        {
-            var info = new FileInfo(path);
-            if (_cache.TryGetValue(path, out var cached) &&
-                cached.Length == info.Length &&
-                cached.LastWriteTimeUtc == info.LastWriteTimeUtc)
-            {
-                return cached.Events;
-            }
-
-            var events = parser(path);
-            _cache[path] = new CachedLogFile(info.Length, info.LastWriteTimeUtc, events);
-            _cacheDirty = true;
-            return events;
-        }
-        catch (IOException)
-        {
-            return [];
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return [];
-        }
-    }
-
-    private void LoadPersistentCache()
-    {
-        try
-        {
-            if (!File.Exists(_cachePath))
-            {
-                return;
-            }
-
-            using var file = File.OpenRead(_cachePath);
-            using var gzip = new GZipStream(file, CompressionMode.Decompress);
-            var stored = JsonSerializer.Deserialize<PersistentCache>(gzip, CacheJsonOptions);
-            if (stored?.Version != CacheVersion)
-            {
-                return;
-            }
-
-            foreach (var entry in stored.Entries)
-            {
-                if (!string.IsNullOrWhiteSpace(entry.Path))
-                {
-                    _cache[entry.Path] = new CachedLogFile(
-                        entry.Length,
-                        entry.LastWriteTimeUtc,
-                        entry.Events);
-                }
-            }
-        }
-        catch (Exception exception) when (exception is IOException or JsonException or InvalidDataException)
-        {
-            _cache.Clear();
-        }
-    }
-
-    private void SavePersistentCache()
-    {
-        if (!_cacheDirty)
-        {
-            return;
-        }
-
-        try
-        {
-            var directory = Path.GetDirectoryName(_cachePath)!;
-            Directory.CreateDirectory(directory);
-            var temporaryPath = _cachePath + ".tmp";
-            var stored = new PersistentCache
-            {
-                Version = CacheVersion,
-                Entries = _cache.Select(pair => new PersistentCacheEntry
-                {
-                    Path = pair.Key,
-                    Length = pair.Value.Length,
-                    LastWriteTimeUtc = pair.Value.LastWriteTimeUtc,
-                    Events = pair.Value.Events.ToList()
-                }).ToList()
-            };
-
-            using (var file = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
-            using (var gzip = new GZipStream(file, CompressionLevel.Fastest))
-            {
-                JsonSerializer.Serialize(gzip, stored, CacheJsonOptions);
-            }
-
-            File.Move(temporaryPath, _cachePath, true);
-            _cacheDirty = false;
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
+            Quota: Math.Max(0, row.Quota),
+            RequestCount: Math.Max(0, row.Count));
     }
 
     private static ProviderUsage BuildProviderUsage(
@@ -583,34 +283,115 @@ public sealed class UsageLogService
         var result = new TokenTotals(0, 0, 0);
         foreach (var item in source.Where(item => item.Timestamp.LocalDateTime >= start))
         {
-            result += new TokenTotals(item.InputTokens, item.OutputTokens, item.CachedInputTokens, 1);
+            result += new TokenTotals(
+                item.InputTokens,
+                item.OutputTokens,
+                item.CachedInputTokens,
+                Math.Max(0, item.RequestCount),
+                item.Quota);
         }
 
         return result;
     }
 
-    private static IEnumerable<string> EnumerateFiles(string root, string pattern, DateTime monthStart)
+    private static void ApplyAuth(HttpRequestMessage request, AppSettings settings)
     {
-        if (!Directory.Exists(root))
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.NewApiAccessToken.Trim());
+        if (settings.NewApiUserId > 0)
         {
-            return [];
-        }
-
-        try
-        {
-            return Directory
-                .EnumerateFiles(root, pattern, SearchOption.AllDirectories)
-                .Where(path => File.GetLastWriteTime(path) >= monthStart)
-                .ToArray();
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            return [];
+            request.Headers.TryAddWithoutValidation(
+                "New-Api-User",
+                settings.NewApiUserId.ToString(CultureInfo.InvariantCulture));
         }
     }
 
-    private static FileStream OpenSharedRead(string path) =>
-        new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+    private static Uri BuildUri(AppSettings settings, string path, params (string Name, string Value)[] query)
+    {
+        var relative = path.TrimStart('/');
+        if (query.Length > 0)
+        {
+            relative += "?" + string.Join(
+                "&",
+                query.Select(item =>
+                    $"{Uri.EscapeDataString(item.Name)}={Uri.EscapeDataString(item.Value)}"));
+        }
+
+        return new Uri(new Uri(NormalizeBaseUrl(settings.NewApiBaseUrl)), relative);
+    }
+
+    private static string NormalizeBaseUrl(string value) => value.Trim().TrimEnd('/') + "/";
+
+    private static string BuildSourceKey(AppSettings settings)
+    {
+        if (!settings.IsNewApiConfigured)
+        {
+            return string.Empty;
+        }
+
+        var raw = $"{NormalizeBaseUrl(settings.NewApiBaseUrl)}|{settings.NewApiUserId}|{settings.NewApiAccessToken.Trim()}";
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
+    }
+
+    private void LoadPersistentCache()
+    {
+        try
+        {
+            if (!File.Exists(_cachePath))
+            {
+                return;
+            }
+
+            using var file = File.OpenRead(_cachePath);
+            using var gzip = new GZipStream(file, CompressionMode.Decompress);
+            var stored = JsonSerializer.Deserialize<PersistentCache>(gzip, CacheJsonOptions);
+            if (stored?.Version == CacheVersion)
+            {
+                _cache = stored;
+            }
+        }
+        catch (Exception exception) when (exception is IOException or JsonException or InvalidDataException)
+        {
+            _cache = null;
+        }
+    }
+
+    private void SavePersistentCache(
+        AppSettings settings,
+        IReadOnlyList<ProviderUsage> providers,
+        IReadOnlyList<TokenUsageEvent> events,
+        string sourceMessage,
+        decimal quotaPerUnit)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(_cachePath)!;
+            Directory.CreateDirectory(directory);
+            var temporaryPath = _cachePath + ".tmp";
+            _cache = new PersistentCache
+            {
+                Version = CacheVersion,
+                SourceKey = BuildSourceKey(settings),
+                SourceMessage = sourceMessage,
+                QuotaPerUnit = quotaPerUnit,
+                Providers = providers.ToList(),
+                Events = events.ToList()
+            };
+
+            using (var file = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var gzip = new GZipStream(file, CompressionLevel.Fastest))
+            {
+                JsonSerializer.Serialize(gzip, _cache, CacheJsonOptions);
+            }
+
+            File.Move(temporaryPath, _cachePath, true);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
 
     private static string ResolveFolder(string environmentName, Environment.SpecialFolder fallback)
     {
@@ -620,85 +401,48 @@ public sealed class UsageLogService
             : Environment.GetFolderPath(fallback);
     }
 
-    private static bool TryReadTimestamp(JsonElement element, out DateTimeOffset timestamp)
+    private sealed class ApiEnvelope<T>
     {
-        foreach (var name in new[] { "timestamp", "createdAt", "startTime" })
-        {
-            var value = GetString(element, name);
-            if (DateTimeOffset.TryParse(value, out timestamp))
-            {
-                return true;
-            }
-        }
+        public bool Success { get; set; }
 
-        timestamp = default;
-        return false;
+        public bool Code { get; set; }
+
+        public string Message { get; set; } = string.Empty;
+
+        public T? Data { get; set; }
+
+        public bool IsSuccess => Success || Code;
     }
 
-    private static bool HasString(JsonElement element, string name, string expected) =>
-        string.Equals(GetString(element, name), expected, StringComparison.Ordinal);
-
-    private static string? GetString(JsonElement element, string name) =>
-        TryGet(element, name, out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : null;
-
-    private static long FirstInt64(JsonElement element, params string[] names)
+    private sealed class NewApiQuotaData
     {
-        foreach (var name in names)
-        {
-            var value = GetInt64(element, name);
-            if (value > 0)
-            {
-                return value;
-            }
-        }
+        [JsonPropertyName("model_name")]
+        public string ModelName { get; set; } = string.Empty;
 
-        return 0;
+        [JsonPropertyName("created_at")]
+        public long CreatedAt { get; set; }
+
+        [JsonPropertyName("token_used")]
+        public long TokenUsed { get; set; }
+
+        [JsonPropertyName("count")]
+        public long Count { get; set; }
+
+        [JsonPropertyName("quota")]
+        public long Quota { get; set; }
     }
-
-    private static long GetInt64(JsonElement element, string name)
-    {
-        if (!TryGet(element, name, out var value))
-        {
-            return 0;
-        }
-
-        return value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var number)
-            ? Math.Max(0, number)
-            : 0;
-    }
-
-    private static bool TryGet(JsonElement element, string name, out JsonElement value)
-    {
-        if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out value))
-        {
-            return true;
-        }
-
-        value = default;
-        return false;
-    }
-
-    private sealed record CachedLogFile(
-        long Length,
-        DateTime LastWriteTimeUtc,
-        IReadOnlyList<TokenUsageEvent> Events);
 
     private sealed class PersistentCache
     {
         public int Version { get; set; }
 
-        public List<PersistentCacheEntry> Entries { get; set; } = [];
-    }
+        public string SourceKey { get; set; } = string.Empty;
 
-    private sealed class PersistentCacheEntry
-    {
-        public string Path { get; set; } = string.Empty;
+        public string? SourceMessage { get; set; }
 
-        public long Length { get; set; }
+        public decimal QuotaPerUnit { get; set; } = DefaultQuotaPerUnit;
 
-        public DateTime LastWriteTimeUtc { get; set; }
+        public List<ProviderUsage> Providers { get; set; } = [];
 
         public List<TokenUsageEvent> Events { get; set; } = [];
     }

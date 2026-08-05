@@ -38,6 +38,26 @@ public sealed class SettingsAndDataServiceTests : IDisposable
     }
 
     [Fact]
+    public void NewApiSettings_PersistAndNotify()
+    {
+        var service = new AppSettingsService(_folder);
+        AppSettings? notified = null;
+        service.SettingsChanged += settings => notified = settings;
+
+        service.SetNewApi(" https://newapi.example.com/ ", " test-token ", 123);
+        var reloaded = new AppSettingsService(_folder);
+
+        Assert.NotNull(notified);
+        Assert.Equal("https://newapi.example.com/", notified.NewApiBaseUrl);
+        Assert.Equal("test-token", notified.NewApiAccessToken);
+        Assert.Equal(123, notified.NewApiUserId);
+        Assert.True(reloaded.Settings.IsNewApiConfigured);
+        Assert.Equal("https://newapi.example.com/", reloaded.Settings.NewApiBaseUrl);
+        Assert.Equal("test-token", reloaded.Settings.NewApiAccessToken);
+        Assert.Equal(123, reloaded.Settings.NewApiUserId);
+    }
+
+    [Fact]
     public void LocalDataUsage_CountsAndClearsManagedFiles()
     {
         var logFolder = Path.Combine(_folder, "logs");

@@ -1,4 +1,3 @@
-using System.IO;
 using System.Text.Json;
 using System.Windows;
 using TokenFloat.Models;
@@ -9,9 +8,9 @@ namespace TokenFloat;
 public partial class App : System.Windows.Application
 {
     private readonly ErrorLogService _errorLogService = new();
-    private readonly AppSettingsService _appSettingsService = new();
+    private readonly AppSettingsService _appSettingsService;
     private readonly LocalDataService _localDataService = new();
-    private readonly UsageLogService _usageLogService = new();
+    private readonly UsageLogService _usageLogService;
     private TrayIconService? _trayIcon;
     private SingleInstanceService? _singleInstance;
     private SettingsWindow? _settingsWindow;
@@ -21,6 +20,8 @@ public partial class App : System.Windows.Application
 
     public App()
     {
+        _appSettingsService = new AppSettingsService();
+        _usageLogService = new UsageLogService(_appSettingsService);
         DispatcherUnhandledException += (_, args) =>
             _errorLogService.Write("DispatcherUnhandledException", args.Exception);
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
@@ -70,45 +71,18 @@ public partial class App : System.Windows.Application
 
         if (e.Args.Contains("--verify-usage", StringComparer.OrdinalIgnoreCase))
         {
-            var snapshot = await new UsageLogService().LoadSnapshotAsync();
+            var appSettingsService = new AppSettingsService();
+            var snapshot = await new UsageLogService(appSettingsService).LoadSnapshotAsync();
             var pricingService = new PricingService();
-            var providers = snapshot.Providers.Select(provider => new
-            {
-                provider.Provider,
-                Today = provider.For(UsagePeriod.Today).TotalTokens,
-                Week = provider.For(UsagePeriod.Week).TotalTokens,
-                Month = provider.For(UsagePeriod.Month).TotalTokens,
-                TodayRequests = provider.For(UsagePeriod.Today).RequestCount,
-                TodayModels = snapshot.ModelsFor(provider.Provider, UsagePeriod.Today)
-                    .Select(model => new
-                    {
-                        model.Model,
-                        Tokens = model.Totals.TotalTokens,
-                        Requests = model.Totals.RequestCount
-                    }),
-                MonthModels = snapshot.ModelsFor(provider.Provider, UsagePeriod.Month)
-                    .Select(model => new
-                    {
-                        model.Model,
-                        Tokens = model.Totals.TotalTokens,
-                        Requests = model.Totals.RequestCount,
-                        Pricing = pricingService.EstimateModel(
-                            snapshot,
-                            provider.Provider,
-                            model.Model,
-                            UsagePeriod.Month)
-                    }),
-                EffectiveToday = provider.For(UsagePeriod.Today).EffectiveTokens,
-                CachedToday = provider.For(UsagePeriod.Today).CachedInputTokens,
-                provider.HasData
-            });
-            var userProfile = Environment.GetEnvironmentVariable("USERPROFILE")
-                ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             var result = new
             {
-                UserProfile = userProfile,
-                CodexRootExists = Directory.Exists(Path.Combine(userProfile, ".codex", "sessions")),
+                NewApiConfigured = appSettingsService.Settings.IsNewApiConfigured,
+                NewApiBaseUrl = appSettingsService.Settings.NewApiBaseUrl,
+                snapshot.SourceMessage,
                 TodayRates = snapshot.RatesFor(UsagePeriod.Today),
+                Totals = Enum.GetValues<UsagePeriod>().ToDictionary(
+                    period => period.ToString(),
+                    period => snapshot.TotalFor(period)),
                 TrendTotals = new
                 {
                     Today = snapshot.TrendFor(UsagePeriod.Today).Points.Sum(item => item.Tokens),
@@ -126,7 +100,26 @@ public partial class App : System.Windows.Application
                         Requests = pricingService.Trend(snapshot, period).Points.Sum(item => item.RequestCount),
                         EstimatedUsd = pricingService.Trend(snapshot, period).Points.Sum(item => item.Pricing.EstimatedUsd)
                     }),
-                Providers = providers
+                TodayModels = snapshot.ModelsFor(UsagePeriod.Today)
+                    .Select(model => new
+                    {
+                        model.Model,
+                        Tokens = model.Totals.TotalTokens,
+                        Requests = model.Totals.RequestCount,
+                        model.Totals.Quota
+                    }),
+                MonthModels = snapshot.ModelsFor(UsagePeriod.Month)
+                    .Select(model => new
+                    {
+                        model.Model,
+                        Tokens = model.Totals.TotalTokens,
+                        Requests = model.Totals.RequestCount,
+                        model.Totals.Quota,
+                        Pricing = pricingService.EstimateModel(
+                            snapshot,
+                            model.Model,
+                            UsagePeriod.Month)
+                    })
             };
             Console.WriteLine(JsonSerializer.Serialize(result));
             Shutdown();

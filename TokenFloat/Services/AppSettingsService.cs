@@ -35,6 +35,18 @@ public sealed class AppSettingsService
         SettingsChanged?.Invoke(_settings);
     }
 
+    public void SetNewApi(string baseUrl, string accessToken, int userId)
+    {
+        _settings = _settings with
+        {
+            NewApiBaseUrl = baseUrl.Trim(),
+            NewApiAccessToken = accessToken.Trim(),
+            NewApiUserId = Math.Max(0, userId)
+        };
+        Save();
+        SettingsChanged?.Invoke(_settings);
+    }
+
     private AppSettings Load()
     {
         try
@@ -72,4 +84,12 @@ public sealed class AppSettingsService
 
 public sealed record AppSettings(
     int RefreshIntervalSeconds = 30,
-    bool RefreshOnlyWhenVisible = false);
+    bool RefreshOnlyWhenVisible = false,
+    string NewApiBaseUrl = "",
+    string NewApiAccessToken = "",
+    int NewApiUserId = 0)
+{
+    public bool IsNewApiConfigured =>
+        !string.IsNullOrWhiteSpace(NewApiBaseUrl) &&
+        !string.IsNullOrWhiteSpace(NewApiAccessToken);
+}

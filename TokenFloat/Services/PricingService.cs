@@ -5,16 +5,23 @@ namespace TokenFloat.Services;
 public sealed class PricingService
 {
     public const string PricingNotice =
-        "按三家官方 API 付费层标准价估算（USD，含日志中可识别的缓存读写）；NewAPI 实际扣费可能因倍率、渠道和缓存规则不同。";
+        "NewAPI 日志未返回已扣额度，当前模型无法按服务端倍率折算；请以 NewAPI 后台为准。";
+    public const string QuotaNotice =
+        "按 NewAPI 消费日志中的已扣额度折算；实际显示受服务端 quota_per_unit 配置影响。";
 
     /// <summary>
-    /// 按事件模型、输入类型和所选周期汇总官方 API 估算费用。
+    /// 优先按 NewAPI quota 折算消耗，缺少 quota 时保留旧模型价兜底。
     /// </summary>
-    public PricingEstimate Estimate(UsageSnapshot snapshot, UsagePeriod period) =>
-        EstimateEvents(EventsForPeriod(snapshot, period));
+    public PricingEstimate Estimate(UsageSnapshot snapshot, UsagePeriod period)
+    {
+        var total = snapshot.TotalFor(period);
+        return total.Quota > 0
+            ? EstimateQuota(total.Quota, total.RequestCount, snapshot.QuotaPerUnit)
+            : EstimateEvents(EventsForPeriod(snapshot, period), snapshot.QuotaPerUnit);
+    }
 
     public PricingEstimate Estimate(UsageSnapshot snapshot, UsageDateRange range) =>
-        EstimateEvents(EventsForRange(snapshot, range));
+        EstimateEvents(EventsForRange(snapshot, range), snapshot.QuotaPerUnit);
 
     public PricingEstimate EstimateModel(
         UsageSnapshot snapshot,
@@ -23,7 +30,7 @@ public sealed class PricingService
         UsagePeriod period) =>
         EstimateEvents(EventsForPeriod(snapshot, period).Where(item =>
             string.Equals(item.Provider, provider, StringComparison.Ordinal) &&
-            string.Equals(ModelName(item.Model), model, StringComparison.Ordinal)));
+            string.Equals(ModelName(item.Model), model, StringComparison.Ordinal)), snapshot.QuotaPerUnit);
 
     public PricingEstimate EstimateModel(
         UsageSnapshot snapshot,
@@ -32,20 +39,35 @@ public sealed class PricingService
         UsageDateRange range) =>
         EstimateEvents(EventsForRange(snapshot, range).Where(item =>
             string.Equals(item.Provider, provider, StringComparison.Ordinal) &&
-            string.Equals(ModelName(item.Model), model, StringComparison.Ordinal)));
+            string.Equals(ModelName(item.Model), model, StringComparison.Ordinal)), snapshot.QuotaPerUnit);
+
+    public PricingEstimate EstimateModel(
+        UsageSnapshot snapshot,
+        string model,
+        UsagePeriod period) =>
+        EstimateEvents(EventsForPeriod(snapshot, period).Where(item =>
+            string.Equals(ModelName(item.Model), model, StringComparison.Ordinal)), snapshot.QuotaPerUnit);
+
+    public PricingEstimate EstimateModel(
+        UsageSnapshot snapshot,
+        string model,
+        UsageDateRange range) =>
+        EstimateEvents(EventsForRange(snapshot, range).Where(item =>
+            string.Equals(ModelName(item.Model), model, StringComparison.Ordinal)), snapshot.QuotaPerUnit);
 
     public PricingTrend Trend(UsageSnapshot snapshot, UsagePeriod period)
     {
         var tokenTrend = snapshot.TrendFor(period);
-        return BuildTrend(tokenTrend, EventsForPeriod(snapshot, period));
+        return BuildTrend(tokenTrend, EventsForPeriod(snapshot, period), snapshot.QuotaPerUnit);
     }
 
     public PricingTrend Trend(UsageSnapshot snapshot, UsageDateRange range) =>
-        BuildTrend(snapshot.TrendFor(range), EventsForRange(snapshot, range));
+        BuildTrend(snapshot.TrendFor(range), EventsForRange(snapshot, range), snapshot.QuotaPerUnit);
 
     private static PricingTrend BuildTrend(
         UsageTrend tokenTrend,
-        IEnumerable<TokenUsageEvent> events)
+        IEnumerable<TokenUsageEvent> events,
+        decimal quotaPerUnit)
     {
         var source = events.ToArray();
         return new PricingTrend(
@@ -58,24 +80,34 @@ public sealed class PricingService
                 return new PricingTrendPoint(
                     point.Label,
                     point.Tokens,
-                    bucket.LongLength,
-                    EstimateEvents(bucket));
+                    bucket.Sum(EventRequestCount),
+                    EstimateEvents(bucket, quotaPerUnit));
             }).ToArray());
     }
 
-    private static PricingEstimate EstimateEvents(IEnumerable<TokenUsageEvent> events)
+    private static PricingEstimate EstimateEvents(IEnumerable<TokenUsageEvent> events, decimal quotaPerUnit)
     {
+        var source = events.ToArray();
+        var quotaTotal = source.Sum(item => item.Quota);
+        if (quotaTotal > 0)
+        {
+            return EstimateQuota(
+                quotaTotal,
+                source.Where(item => item.Quota > 0).Sum(EventRequestCount),
+                quotaPerUnit);
+        }
+
         decimal total = 0;
         long pricedRequests = 0;
         long unpricedRequests = 0;
         var unpricedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var item in events)
+        foreach (var item in source)
         {
             var price = ResolvePrice(item);
             if (price is null)
             {
-                unpricedRequests++;
+                unpricedRequests += EventRequestCount(item);
                 unpricedModels.Add($"{item.Provider} / {ModelName(item.Model)}");
                 continue;
             }
@@ -88,7 +120,7 @@ public sealed class PricingService
             total += item.CacheWriteInputTokens * price.CacheWriteFiveMinutesPerMillion;
             total += item.CacheWriteOneHourInputTokens * price.CacheWriteOneHourPerMillion;
             total += item.OutputTokens * price.OutputPerMillion;
-            pricedRequests++;
+            pricedRequests += EventRequestCount(item);
         }
 
         return new PricingEstimate(
@@ -96,6 +128,18 @@ public sealed class PricingService
             pricedRequests,
             unpricedRequests,
             unpricedModels.Order(StringComparer.OrdinalIgnoreCase).ToArray());
+    }
+
+    private static PricingEstimate EstimateQuota(decimal quota, long requestCount, decimal quotaPerUnit)
+    {
+        var unit = quotaPerUnit > 0 ? quotaPerUnit : 500_000m;
+        return new PricingEstimate(
+            quota / unit,
+            requestCount,
+            0,
+            [],
+            true,
+            quota);
     }
 
     private static IEnumerable<TokenUsageEvent> EventsForPeriod(
@@ -128,6 +172,9 @@ public sealed class PricingService
         UsagePeriod.Week => now.Date.AddDays(-(((int)now.DayOfWeek + 6) % 7)),
         _ => new DateTime(now.Year, now.Month, 1)
     };
+
+    private static long EventRequestCount(TokenUsageEvent item) =>
+        Math.Max(0, item.RequestCount);
 
     private static ModelPrice? ResolvePrice(TokenUsageEvent item)
     {
@@ -238,7 +285,9 @@ public sealed record PricingEstimate(
     decimal EstimatedUsd,
     long PricedRequestCount,
     long UnpricedRequestCount,
-    IReadOnlyList<string> UnpricedModels)
+    IReadOnlyList<string> UnpricedModels,
+    bool IsQuotaBased = false,
+    decimal Quota = 0m)
 {
     public bool HasPricedUsage => PricedRequestCount > 0;
 

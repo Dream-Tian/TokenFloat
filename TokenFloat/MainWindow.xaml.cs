@@ -15,7 +15,6 @@ using Brushes = System.Windows.Media.Brushes;
 using Button = System.Windows.Controls.Button;
 using Color = System.Windows.Media.Color;
 using FontFamily = System.Windows.Media.FontFamily;
-using MessageBox = System.Windows.MessageBox;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
 
@@ -24,7 +23,7 @@ namespace TokenFloat;
 public partial class MainWindow : Window
 {
     private const double NormalWidth = 370;
-    private const double NormalHeight = 520;
+    private const double NormalHeight = 430;
     private const double MiniWidth = 286;
     private const double MiniHeight = 78;
 
@@ -32,7 +31,6 @@ public partial class MainWindow : Window
     private readonly AppSettingsService _appSettingsService;
     private readonly PricingService _pricingService = new();
     private readonly WindowPositionStore _positionStore = new();
-    private readonly CodexAppLauncherService _codexAppLauncher = new();
     private readonly DispatcherTimer _refreshTimer;
     private UsageSnapshot? _snapshot;
     private UsagePeriod _period = UsagePeriod.Today;
@@ -98,7 +96,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 后台检查变化的日志文件，未变化部分直接复用磁盘索引。
+    /// 后台从 NewAPI 拉取消费日志，并复用最近一次压缩缓存做启动展示。
     /// </summary>
     private async Task<bool> RefreshAsync()
     {
@@ -127,7 +125,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 删除统计索引后立即从原始日志重建；刷新进行中时拒绝重复清理。
+    /// 删除本地统计缓存后立即从 NewAPI 重拉；刷新进行中时拒绝重复清理。
     /// </summary>
     public async Task<bool> ClearUsageCacheAsync()
     {
@@ -163,14 +161,13 @@ public partial class MainWindow : Window
         }
 
         var total = ActiveTotal();
+        var pricing = ActivePricing();
         TotalTokensText.Text = FormatTokens(total.TotalTokens);
-        InputTokensText.Text = FormatTokens(total.InputTokens);
-        OutputTokensText.Text = FormatTokens(total.OutputTokens);
+        PrimaryUnitText.Text = " Token";
         var rates = ActiveRates();
         RequestCountText.Text = FormatCount(rates.RequestCount);
         AverageRpmText.Text = FormatRate(rates.AverageRpm);
         AverageTpmText.Text = FormatRate(rates.AverageTpm);
-        var pricing = ActivePricing();
         EstimatedCostText.Text = FormatCost(pricing);
         EstimatedCostText.ToolTip = BuildCostTooltip(pricing);
         PeriodTitleText.Text = _customRange is not null
@@ -193,9 +190,6 @@ public partial class MainWindow : Window
             RenderComparison(_snapshot.ComparisonFor(_period));
         }
 
-        CodexTokensText.Text = ProviderText("Codex");
-        ClaudeTokensText.Text = ProviderText("Claude");
-        GeminiTokensText.Text = ProviderText("Gemini");
         var today = _snapshot.TotalFor(UsagePeriod.Today);
         var todayPricing = _pricingService.Estimate(_snapshot, UsagePeriod.Today);
         MiniTokensText.Text = FormatTokens(today.TotalTokens);
@@ -228,30 +222,6 @@ public partial class MainWindow : Window
         ComparisonText.ToolTip = $"当前 {FormatTokens(comparison.CurrentTokens)} · 同期 {FormatTokens(comparison.PreviousTokens)}";
     }
 
-    private string ProviderText(string providerName)
-    {
-        if (_snapshot is null)
-        {
-            return "暂无记录";
-        }
-
-        if (_customRange is not null)
-        {
-            var customTotal = _snapshot.TotalFor(providerName, _customRange);
-            return customTotal.RequestCount > 0
-                ? FormatTokens(customTotal.TotalTokens)
-                : "暂无记录";
-        }
-
-        var provider = _snapshot?.Providers.FirstOrDefault(item => item.Provider == providerName);
-        if (provider is null || !provider.HasData)
-        {
-            return "暂无记录";
-        }
-
-        return FormatTokens(provider.For(_period).TotalTokens);
-    }
-
     private TokenTotals ActiveTotal() =>
         _customRange is null ? _snapshot!.TotalFor(_period) : _snapshot!.TotalFor(_customRange);
 
@@ -267,7 +237,13 @@ public partial class MainWindow : Window
     {
         var total = _snapshot!.TotalFor(UsagePeriod.Today);
         var rates = _snapshot.RatesFor(UsagePeriod.Today);
-        return $"今日 {FormatTokens(total.TotalTokens)} · {total.RequestCount}次 · RPM {FormatRate(rates.AverageRpm)} · TPM {FormatRate(rates.AverageTpm)}";
+        var pricing = _pricingService.Estimate(_snapshot, UsagePeriod.Today);
+        if (total.TotalTokens == 0 && total.Quota > 0)
+        {
+            return $"今日消耗 {FormatCost(pricing)}";
+        }
+
+        return $"今日 {FormatTokens(total.TotalTokens)} · {total.RequestCount}次 · 消耗 {FormatCost(pricing)}";
     }
 
     /// <summary>
@@ -358,7 +334,7 @@ public partial class MainWindow : Window
 
         var hoverText = $"{point.Label} · {FormatTokens(point.Tokens)} · {point.RequestCount}次 · {FormatCost(point.Pricing)}";
         TrendPeakText.Text = hoverText;
-        UsageTrendCanvas.ToolTip = $"{hoverText}\n{BuildCostTooltip(point.Pricing)}";
+        UsageTrendCanvas.ToolTip = hoverText;
         TrendHoverLine.X1 = x;
         TrendHoverLine.X2 = x;
         TrendHoverLine.Y1 = 0;
@@ -379,7 +355,7 @@ public partial class MainWindow : Window
         if (_trendMaximum <= 0)
         {
             TrendPeakText.Text = _trendMetric == TrendMetric.Cost && _trendPoints.Any(item => item.RequestCount > 0)
-                ? "暂无计价"
+                ? "暂无消耗"
                 : "暂无记录";
             return;
         }
@@ -413,66 +389,6 @@ public partial class MainWindow : Window
         TrendCostButton.Foreground = _trendMetric == TrendMetric.Cost ? active : inactive;
     }
 
-    private void ProviderRow_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (_snapshot is null || sender is not FrameworkElement { Tag: string provider })
-        {
-            return;
-        }
-
-        var models = _customRange is null
-            ? _snapshot.ModelsFor(provider, _period)
-            : _snapshot.ModelsFor(provider, _customRange);
-        ModelDetailsPopup.PlacementTarget = (UIElement)sender;
-        ModelDetailsTitle.Text = $"{provider} · {PeriodShortText()}";
-        ModelDetailsPanel.Children.Clear();
-
-        foreach (var model in models)
-        {
-            var pricing = _customRange is null
-                ? _pricingService.EstimateModel(_snapshot, provider, model.Model, _period)
-                : _pricingService.EstimateModel(_snapshot, provider, model.Model, _customRange);
-            var row = new Grid { Margin = new Thickness(0, 6, 0, 6) };
-            row.ColumnDefinitions.Add(new ColumnDefinition());
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            row.Children.Add(new TextBlock
-            {
-                Text = model.Model,
-                FontFamily = (FontFamily)FindResource("SerifFont"),
-                FontSize = 13,
-                Foreground = (Brush)FindResource("InkStrong"),
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                Margin = new Thickness(0, 0, 12, 0)
-            });
-            var value = new TextBlock
-            {
-                Text = $"{FormatTokens(model.Totals.TotalTokens)} · {model.Totals.RequestCount}次\n{FormatCost(pricing)}",
-                FontFamily = (FontFamily)FindResource("BodyFont"),
-                FontSize = 13,
-                Foreground = (Brush)FindResource("SealRed"),
-                TextAlignment = TextAlignment.Right,
-                ToolTip = BuildCostTooltip(pricing)
-            };
-            Grid.SetColumn(value, 1);
-            row.Children.Add(value);
-            ModelDetailsPanel.Children.Add(row);
-        }
-
-        if (models.Count == 0)
-        {
-            ModelDetailsPanel.Children.Add(new TextBlock
-            {
-                Text = "暂无模型记录",
-                FontFamily = (FontFamily)FindResource("BodyFont"),
-                Foreground = (Brush)FindResource("InkClear"),
-                Margin = new Thickness(0, 8, 0, 4)
-            });
-        }
-
-        ModelDetailsPopup.IsOpen = true;
-        e.Handled = true;
-    }
-
     private void ModelRankingButton_Click(object sender, RoutedEventArgs e)
     {
         if (_snapshot is null)
@@ -483,12 +399,10 @@ public partial class MainWindow : Window
         ModelRankingTitle.Text = $"模型榜 · {PeriodShortText()}";
         ModelRankingPanel.Children.Clear();
         var periodPricing = ActivePricing();
-        var ranking = _snapshot.Providers
-            .SelectMany(provider => ActiveModelsFor(provider.Provider)
-                .Select(model => new ModelRankingEntry(
-                    provider.Provider,
-                    model,
-                    ActiveModelPricing(provider.Provider, model.Model))))
+        var ranking = ActiveModelsFor()
+            .Select(model => new ModelRankingEntry(
+                model,
+                ActiveModelPricing(model.Model)))
             .OrderByDescending(item => item.Model.Totals.TotalTokens)
             .ToArray();
 
@@ -514,15 +428,15 @@ public partial class MainWindow : Window
         ModelRankingPopup.IsOpen = true;
     }
 
-    private IReadOnlyList<ModelUsage> ActiveModelsFor(string provider) =>
+    private IReadOnlyList<ModelUsage> ActiveModelsFor() =>
         _customRange is null
-            ? _snapshot!.ModelsFor(provider, _period)
-            : _snapshot!.ModelsFor(provider, _customRange);
+            ? _snapshot!.ModelsFor(_period)
+            : _snapshot!.ModelsFor(_customRange);
 
-    private PricingEstimate ActiveModelPricing(string provider, string model) =>
+    private PricingEstimate ActiveModelPricing(string model) =>
         _customRange is null
-            ? _pricingService.EstimateModel(_snapshot!, provider, model, _period)
-            : _pricingService.EstimateModel(_snapshot!, provider, model, _customRange);
+            ? _pricingService.EstimateModel(_snapshot!, model, _period)
+            : _pricingService.EstimateModel(_snapshot!, model, _customRange);
 
     private FrameworkElement CreateModelRankingRow(
         int rank,
@@ -564,7 +478,7 @@ public partial class MainWindow : Window
         });
         modelText.Children.Add(new TextBlock
         {
-            Text = $"{item.Provider} · 入 {inputPercent:0.#}% / 出 {outputPercent:0.#}%",
+            Text = $"入 {inputPercent:0.#}% / 出 {outputPercent:0.#}%",
             Margin = new Thickness(0, 2, 0, 0),
             FontFamily = (FontFamily)FindResource("BodyFont"),
             FontSize = 10,
@@ -575,12 +489,12 @@ public partial class MainWindow : Window
 
         var values = new TextBlock
         {
-            Text = $"{FormatTokens(totals.TotalTokens)}\n{totals.RequestCount}次 · 费 {costShare}",
+            Text = $"{FormatTokens(totals.TotalTokens)}\n{totals.RequestCount}次 · 消耗 {costShare}",
             FontFamily = (FontFamily)FindResource("BodyFont"),
             FontSize = 11,
             Foreground = (Brush)FindResource("LandscapeGreen"),
             TextAlignment = TextAlignment.Right,
-            ToolTip = $"{FormatCost(item.Pricing)}\n{BuildCostTooltip(item.Pricing)}"
+            ToolTip = JoinTooltip(FormatCost(item.Pricing), BuildCostTooltip(item.Pricing))
         };
         Grid.SetColumn(values, 2);
         grid.Children.Add(values);
@@ -591,40 +505,6 @@ public partial class MainWindow : Window
             BorderThickness = new Thickness(0, 0, 0, 1),
             Child = grid
         };
-    }
-
-    private void CodexRow_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ClickCount < 2)
-        {
-            return;
-        }
-
-        ModelDetailsPopup.IsOpen = false;
-        if (!_codexAppLauncher.TryLaunch(out var error))
-        {
-            var choice = MessageBox.Show(
-                $"{error}\n\n是否手动选择 Codex 桌面应用？",
-                "TokenFloat",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Information);
-            if (choice == MessageBoxResult.Yes)
-            {
-                var dialog = new Microsoft.Win32.OpenFileDialog
-                {
-                    Title = "选择 Codex 桌面应用",
-                    Filter = "应用程序 (*.exe)|*.exe|所有文件 (*.*)|*.*",
-                    CheckFileExists = true
-                };
-                if (dialog.ShowDialog(this) == true &&
-                    !_codexAppLauncher.SaveAndLaunch(dialog.FileName, out error))
-                {
-                    MessageBox.Show(error, "TokenFloat", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
-            }
-        }
-
-        e.Handled = true;
     }
 
     private string PeriodShortText() => _customRange?.Title ?? (_period switch
@@ -723,7 +603,7 @@ public partial class MainWindow : Window
             {
                 _customRange = previousRange;
                 RenderSnapshot();
-                ShowCustomRangeStatus("读取日志失败，请检查数据目录", false);
+                ShowCustomRangeStatus("读取日志失败，请检查 NewAPI 设置", false);
                 return;
             }
 
@@ -873,24 +753,39 @@ public partial class MainWindow : Window
 
     private static string FormatCost(PricingEstimate estimate)
     {
+        if (estimate.IsQuotaBased)
+        {
+            return FormatUsd(estimate.EstimatedUsd);
+        }
+
         if (!estimate.HasPricedUsage && estimate.UnpricedRequestCount > 0)
         {
             return "未计价";
         }
 
-        var value = estimate.EstimatedUsd switch
+        var value = FormatUsd(estimate.EstimatedUsd);
+        return estimate.IsComplete ? value : $"≈{value}";
+    }
+
+    private static string FormatUsd(decimal value)
+    {
+        return value switch
         {
-            >= 1_000m => $"${estimate.EstimatedUsd:N0}",
-            >= 1m => $"${estimate.EstimatedUsd:0.00}",
-            >= 0.01m => $"${estimate.EstimatedUsd:0.000}",
-            > 0m => $"${estimate.EstimatedUsd:0.0000}",
+            >= 1_000m => $"${value:N0}",
+            >= 1m => $"${value:0.00}",
+            >= 0.01m => $"${value:0.000}",
+            > 0m => $"${value:0.0000}",
             _ => "$0.00"
         };
-        return estimate.IsComplete ? value : $"≥{value}";
     }
 
     private static string BuildCostTooltip(PricingEstimate estimate)
     {
+        if (estimate.IsQuotaBased || (estimate.PricedRequestCount == 0 && estimate.UnpricedRequestCount == 0))
+        {
+            return string.Empty;
+        }
+
         if (estimate.IsComplete)
         {
             return PricingService.PricingNotice;
@@ -898,6 +793,9 @@ public partial class MainWindow : Window
 
         return $"{PricingService.PricingNotice}\n未计价模型：{string.Join("、", estimate.UnpricedModels)}";
     }
+
+    private static string JoinTooltip(string firstLine, string extra) =>
+        string.IsNullOrWhiteSpace(extra) ? firstLine : $"{firstLine}\n{extra}";
 
     private static string FormatRate(double value) => value switch
     {
@@ -959,7 +857,6 @@ public partial class MainWindow : Window
     }
 
     private sealed record ModelRankingEntry(
-        string Provider,
         ModelUsage Model,
         PricingEstimate Pricing);
 }
