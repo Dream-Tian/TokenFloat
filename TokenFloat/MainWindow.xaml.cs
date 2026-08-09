@@ -179,26 +179,6 @@ public partial class MainWindow : Window
         AverageTpmText.Text = FormatRate(rates.AverageTpm);
         EstimatedCostText.Text = FormatCost(pricing);
         EstimatedCostText.ToolTip = BuildCostTooltip(pricing);
-        PeriodTitleText.Text = _customRange is not null
-            ? "自定所耗"
-            : _period switch
-            {
-                UsagePeriod.Today => "今日所耗",
-                UsagePeriod.Week => "本周所耗",
-                _ => "本月所耗"
-            };
-        if (_customRange is not null)
-        {
-            ComparisonText.Text = $"{_customRange.Title} · {_customRange.DayCount}日";
-            ComparisonText.Foreground = (Brush)FindResource("DashboardMuted");
-            ComparisonText.ToolTip =
-                $"开始 {_customRange.Start:yyyy-MM-dd} · 结束 {_customRange.EndExclusive.AddDays(-1):yyyy-MM-dd}";
-        }
-        else
-        {
-            RenderComparison(_snapshot.ComparisonFor(_period));
-        }
-
         var today = _snapshot.TotalFor(UsagePeriod.Today);
         var todayPricing = _pricingService.Estimate(_snapshot, UsagePeriod.Today);
         MiniTokensText.Text = FormatTokens(today.TotalTokens);
@@ -270,28 +250,6 @@ public partial class MainWindow : Window
                 Margin = new Thickness(0, 12, 0, 5)
             });
         }
-    }
-
-    private void RenderComparison(UsageComparison comparison)
-    {
-        if (comparison.PreviousTokens == 0 || comparison.ChangePercent is null)
-        {
-            ComparisonText.Text = $"{comparison.Label} · 暂无记录";
-            ComparisonText.Foreground = (Brush)FindResource("DashboardMuted");
-        }
-        else
-        {
-            var direction = comparison.ChangePercent > 0 ? "↑" : comparison.ChangePercent < 0 ? "↓" : "—";
-            ComparisonText.Text = $"{comparison.Label}  {direction} {Math.Abs(comparison.ChangePercent.Value):0.#}%";
-            ComparisonText.Foreground = comparison.ChangePercent switch
-            {
-                > 0 => (Brush)FindResource("DashboardOrange"),
-                < 0 => (Brush)FindResource("DashboardGreen"),
-                _ => (Brush)FindResource("DashboardMuted")
-            };
-        }
-
-        ComparisonText.ToolTip = $"当前 {FormatTokens(comparison.CurrentTokens)} · 同期 {FormatTokens(comparison.PreviousTokens)}";
     }
 
     private TokenTotals ActiveTotal() =>

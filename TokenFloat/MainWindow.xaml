@@ -487,13 +487,6 @@
                             </StackPanel>
                         </Border>
                         <Border Grid.Column="2" Height="24" Background="{StaticResource DashboardBorder}" VerticalAlignment="Center" />
-                        <StackPanel Grid.Column="3" Margin="14,0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock x:Name="PeriodTitleText" Text="今日所耗" FontSize="12" FontWeight="SemiBold"
-                                       Foreground="{StaticResource DashboardText}" VerticalAlignment="Center" />
-                            <TextBlock x:Name="ComparisonText" Margin="10,0,0,0" FontSize="11"
-                                       Foreground="{StaticResource DashboardMuted}" VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
                         <Button x:Name="ModelRankingButton" Grid.Column="4" Height="32" Padding="12,0"
                                 Style="{StaticResource InkActionButtonStyle}" Content="模型排行"
                                 Click="ModelRankingButton_Click" ToolTip="查看当前周期模型排行榜" />

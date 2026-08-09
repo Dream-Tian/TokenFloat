@@ -1,6 +1,6 @@
 {
-  "version": "2.0.1",
+  "version": "2.0.2",
   "installerUrl": "TokenFloat-Setup-x64.exe",
   "sha256": "REPLACE_WITH_INSTALLER_SHA256",
-  "releaseNotes": "优化仪表盘界面，新增总览、趋势和模型标签页，统一正常与迷你模式视觉。"
+  "releaseNotes": "移除总览范围栏中遮挡模型排行按钮的今日消耗摘要。"
 }
