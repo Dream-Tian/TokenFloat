@@ -991,6 +991,7 @@ public partial class MainWindow : Window
 
     private void ApplyWindowMode()
     {
+        NormalModeBorder.Visibility = _isMiniMode ? Visibility.Collapsed : Visibility.Visible;
         NormalContent.Visibility = _isMiniMode ? Visibility.Collapsed : Visibility.Visible;
         MiniContent.Visibility = _isMiniMode ? Visibility.Visible : Visibility.Collapsed;
         MinWidth = _isMiniMode ? MiniWidth : NormalWidth;

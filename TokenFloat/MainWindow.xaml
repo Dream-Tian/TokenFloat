@@ -288,9 +288,13 @@
             BorderBrush="{StaticResource DashboardBorder}"
             BorderThickness="1">
         <Grid>
+        <Border x:Name="NormalModeBorder"
+                CornerRadius="12"
+                ClipToBounds="True"
+                Background="{StaticResource DashboardBackground}">
         <Grid x:Name="NormalContent"
               ClipToBounds="True"
-              Background="{StaticResource DashboardBackground}"
+              Background="Transparent"
               TextElement.FontFamily="{StaticResource DashboardFont}">
             <Grid Margin="12">
                 <Grid.RowDefinitions>
@@ -308,11 +312,9 @@
                     </Grid.ColumnDefinitions>
                     <Image Width="24" Height="24" Source="Assets/tokenfloat-cat.png" Stretch="UniformToFill" />
                     <StackPanel Grid.Column="1" Margin="9,0,0,0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="TokenFloat" FontSize="14" FontWeight="SemiBold"
+                            <TextBlock Text="TokenFloat" FontSize="14" FontWeight="SemiBold"
                                    Foreground="{StaticResource DashboardText}" />
-                        <TextBlock Text="NEWAPI USAGE" Margin="10,1,0,0" FontSize="10"
-                                   Foreground="{StaticResource DashboardSubtle}" />
-                    </StackPanel>
+                        </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal">
                         <Button Style="{StaticResource WindowButtonStyle}" Content="—" Click="MinimizeButton_Click" ToolTip="最小化到托盘" />
                         <Button Style="{StaticResource WindowButtonStyle}" Content="×" Click="CloseButton_Click" ToolTip="关闭到托盘" />
@@ -323,11 +325,11 @@
                         BorderThickness="1" CornerRadius="6" Padding="2">
                     <StackPanel Orientation="Horizontal">
                         <Button x:Name="OverviewTabButton" Content="总览" Tag="Overview"
-                                Style="{StaticResource PeriodButtonStyle}" Click="NormalTabButton_Click" />
+                                Style="{StaticResource PeriodButtonStyle}" Click="NormalTabButton_Click" VerticalAlignment="Center"/>
                         <Button x:Name="TrendTabButton" Content="趋势" Tag="Trend"
-                                Style="{StaticResource PeriodButtonStyle}" Click="NormalTabButton_Click" />
+                                Style="{StaticResource PeriodButtonStyle}" Click="NormalTabButton_Click" VerticalAlignment="Center"/>
                         <Button x:Name="ModelTabButton" Content="模型" Tag="Model"
-                                Style="{StaticResource PeriodButtonStyle}" Click="NormalTabButton_Click" />
+                                Style="{StaticResource PeriodButtonStyle}" Click="NormalTabButton_Click" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Border>
 
@@ -487,6 +489,13 @@
                             </StackPanel>
                         </Border>
                         <Border Grid.Column="2" Height="24" Background="{StaticResource DashboardBorder}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="3" Margin="14,0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="PeriodTitleText" Text="今日所耗" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource DashboardText}" VerticalAlignment="Center" />
+                            <TextBlock x:Name="ComparisonText" Margin="10,0,0,0" FontSize="11"
+                                       Foreground="{StaticResource DashboardMuted}" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
                         <Button x:Name="ModelRankingButton" Grid.Column="4" Height="32" Padding="12,0"
                                 Style="{StaticResource InkActionButtonStyle}" Content="模型排行"
                                 Click="ModelRankingButton_Click" ToolTip="查看当前周期模型排行榜" />
@@ -710,6 +719,7 @@
                 </Border>
             </Popup>
         </Grid>
+        </Border>
         <Grid x:Name="MiniContent" Visibility="Collapsed" Margin="12,9"
               Background="{StaticResource DashboardBackground}" Cursor="SizeAll"
               ToolTip="双击展开完整面板"

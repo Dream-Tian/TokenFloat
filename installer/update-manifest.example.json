@@ -1,6 +1,6 @@
 {
-  "version": "2.0.2",
+  "version": "2.0.3",
   "installerUrl": "TokenFloat-Setup-x64.exe",
   "sha256": "REPLACE_WITH_INSTALLER_SHA256",
-  "releaseNotes": "移除总览范围栏中遮挡模型排行按钮的今日消耗摘要。"
+  "releaseNotes": "为正常模式补充可见的圆角裁剪容器，并保留现有界面调整。"
 }
