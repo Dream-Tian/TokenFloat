@@ -17,15 +17,20 @@ using Color = System.Windows.Media.Color;
 using FontFamily = System.Windows.Media.FontFamily;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
+using Rectangle = System.Windows.Shapes.Rectangle;
 
 namespace TokenFloat;
 
 public partial class MainWindow : Window
 {
-    private const double NormalWidth = 370;
-    private const double NormalHeight = 430;
+    private const double NormalWidth = 500;
+    private const double NormalHeight = 305;
     private const double MiniWidth = 286;
     private const double MiniHeight = 78;
+    private const double TrendPlotLeft = 54;
+    private const double TrendPlotTop = 14;
+    private const double TrendPlotRight = 16;
+    private const double TrendPlotBottom = 42;
 
     private readonly UsageLogService _usageLogService;
     private readonly AppSettingsService _appSettingsService;
@@ -37,7 +42,9 @@ public partial class MainWindow : Window
     private UsageDateRange? _customRange;
     private bool _isRefreshing;
     private IReadOnlyList<PricingTrendPoint> _trendPoints = [];
-    private TrendMetric _trendMetric = TrendMetric.Tokens;
+    private TrendMetric _trendMetric = TrendMetric.Cost;
+    private TrendChartStyle _trendChartStyle = TrendChartStyle.Bars;
+    private NormalTab _normalTab = NormalTab.Overview;
     private double _trendMaximum;
     private bool _isMiniMode;
     private long? _lastTodayTokens;
@@ -84,6 +91,8 @@ public partial class MainWindow : Window
         _positionStore.Restore(this, _isMiniMode);
         UpdatePeriodButtons();
         UpdateTrendMetricButtons();
+        UpdateTrendChartStyleButtons();
+        UpdateNormalTabButtons();
 
         if (_usageLogService.GetCachedSnapshot() is { } cachedSnapshot)
         {
@@ -181,7 +190,7 @@ public partial class MainWindow : Window
         if (_customRange is not null)
         {
             ComparisonText.Text = $"{_customRange.Title} · {_customRange.DayCount}日";
-            ComparisonText.Foreground = (Brush)FindResource("InkClear");
+            ComparisonText.Foreground = (Brush)FindResource("DashboardMuted");
             ComparisonText.ToolTip =
                 $"开始 {_customRange.Start:yyyy-MM-dd} · 结束 {_customRange.EndExclusive.AddDays(-1):yyyy-MM-dd}";
         }
@@ -197,7 +206,70 @@ public partial class MainWindow : Window
         MiniCostText.ToolTip = BuildCostTooltip(todayPricing);
         UpdateMiniTokenIncrease(today.TotalTokens);
         DrawUsageTrend();
+        RenderModelPage();
         TraySummaryChanged?.Invoke(BuildTraySummary());
+    }
+
+    private void NormalTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string tag } || !Enum.TryParse(tag, out NormalTab tab))
+        {
+            return;
+        }
+
+        _normalTab = tab;
+        UpdateNormalTabButtons();
+        if (tab == NormalTab.Trend)
+        {
+            DrawUsageTrend();
+        }
+        else if (tab == NormalTab.Model)
+        {
+            RenderModelPage();
+        }
+    }
+
+    private void UpdateNormalTabButtons()
+    {
+        SetSegmentButtonState(OverviewTabButton, _normalTab == NormalTab.Overview);
+        SetSegmentButtonState(TrendTabButton, _normalTab == NormalTab.Trend);
+        SetSegmentButtonState(ModelTabButton, _normalTab == NormalTab.Model);
+        OverviewPage.Visibility = _normalTab == NormalTab.Overview ? Visibility.Visible : Visibility.Collapsed;
+        TrendPage.Visibility = _normalTab == NormalTab.Trend ? Visibility.Visible : Visibility.Collapsed;
+        ModelPage.Visibility = _normalTab == NormalTab.Model ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void RenderModelPage()
+    {
+        if (_snapshot is null)
+        {
+            return;
+        }
+
+        var periodPricing = ActivePricing();
+        var ranking = ActiveModelsFor()
+            .Select(model => new ModelRankingEntry(model, ActiveModelPricing(model.Model)))
+            .OrderByDescending(item => item.Model.Totals.TotalTokens)
+            .ToArray();
+        ModelPageTitle.Text = $"模型用量 · {PeriodShortText()}";
+        ModelPageSummary.Text = $"{ranking.Length} 个模型 · {FormatCost(periodPricing)}";
+        ModelPagePanel.Children.Clear();
+        for (var index = 0; index < ranking.Length; index++)
+        {
+            ModelPagePanel.Children.Add(CreateModelRankingRow(index + 1, ranking[index], periodPricing));
+        }
+
+        if (ranking.Length == 0)
+        {
+            ModelPagePanel.Children.Add(new TextBlock
+            {
+                Text = "当前范围暂无模型记录",
+                FontFamily = (FontFamily)FindResource("DashboardFont"),
+                FontSize = 11,
+                Foreground = (Brush)FindResource("DashboardMuted"),
+                Margin = new Thickness(0, 12, 0, 5)
+            });
+        }
     }
 
     private void RenderComparison(UsageComparison comparison)
@@ -205,7 +277,7 @@ public partial class MainWindow : Window
         if (comparison.PreviousTokens == 0 || comparison.ChangePercent is null)
         {
             ComparisonText.Text = $"{comparison.Label} · 暂无记录";
-            ComparisonText.Foreground = (Brush)FindResource("InkClear");
+            ComparisonText.Foreground = (Brush)FindResource("DashboardMuted");
         }
         else
         {
@@ -213,9 +285,9 @@ public partial class MainWindow : Window
             ComparisonText.Text = $"{comparison.Label}  {direction} {Math.Abs(comparison.ChangePercent.Value):0.#}%";
             ComparisonText.Foreground = comparison.ChangePercent switch
             {
-                > 0 => (Brush)FindResource("SealRed"),
-                < 0 => (Brush)FindResource("LandscapeGreen"),
-                _ => (Brush)FindResource("InkClear")
+                > 0 => (Brush)FindResource("DashboardOrange"),
+                < 0 => (Brush)FindResource("DashboardGreen"),
+                _ => (Brush)FindResource("DashboardMuted")
             };
         }
 
@@ -247,7 +319,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 按当前周期绘制 Token 或费用水墨趋势线。
+    /// 按当前周期绘制带坐标轴的柱状图或面积图，并复用同一组悬浮数据点。
     /// </summary>
     private void DrawUsageTrend()
     {
@@ -259,86 +331,167 @@ public partial class MainWindow : Window
         var trend = _customRange is null
             ? _pricingService.Trend(_snapshot, _period)
             : _pricingService.Trend(_snapshot, _customRange);
-        var maximum = trend.Points.Max(TrendValue);
+        var maximum = trend.Points.Count == 0 ? 0 : trend.Points.Max(TrendValue);
         _trendPoints = trend.Points;
         _trendMaximum = maximum;
         TrendTitleText.Text = trend.Title;
+        TrendTotalText.Text = _trendMetric == TrendMetric.Tokens
+            ? $"总计 {FormatTokens(trend.Points.Sum(point => point.Tokens))}"
+            : $"总计 {FormatCost(ActivePricing())}";
         RestoreTrendPeakText();
         TrendHoverCanvas.Visibility = Visibility.Collapsed;
         UsageTrendCanvas.Children.Clear();
 
         var width = UsageTrendCanvas.ActualWidth;
         var height = UsageTrendCanvas.ActualHeight;
-        UsageTrendCanvas.Children.Add(new Line
+        var plotWidth = Math.Max(1, width - TrendPlotLeft - TrendPlotRight);
+        var plotHeight = Math.Max(1, height - TrendPlotTop - TrendPlotBottom);
+        var plotBottom = TrendPlotTop + plotHeight;
+
+        for (var tick = 0; tick <= 4; tick++)
         {
-            X1 = 0,
-            Y1 = height - 1,
-            X2 = width,
-            Y2 = height - 1,
-            Stroke = new SolidColorBrush(Color.FromArgb(30, 26, 26, 26)),
-            StrokeThickness = 1
-        });
+            var ratio = tick / 4d;
+            var y = TrendPlotTop + ratio * plotHeight;
+            UsageTrendCanvas.Children.Add(new Line
+            {
+                X1 = TrendPlotLeft,
+                Y1 = y,
+                X2 = TrendPlotLeft + plotWidth,
+                Y2 = y,
+                Stroke = new SolidColorBrush(Color.FromRgb(235, 238, 233)),
+                StrokeThickness = 1
+            });
+
+            var axisLabel = new TextBlock
+            {
+                Text = FormatTrendAxisValue(maximum * (1 - ratio)),
+                Width = 44,
+                TextAlignment = TextAlignment.Right,
+                FontFamily = (FontFamily)FindResource("DashboardFont"),
+                FontSize = 10,
+                Foreground = (Brush)FindResource("DashboardMuted")
+            };
+            Canvas.SetLeft(axisLabel, 0);
+            Canvas.SetTop(axisLabel, y - 7);
+            UsageTrendCanvas.Children.Add(axisLabel);
+        }
+
+        if (trend.Points.Count == 0)
+        {
+            return;
+        }
+
+        var labelStride = Math.Max(1, (int)Math.Ceiling(trend.Points.Count / 8d));
+        for (var index = 0; index < trend.Points.Count; index++)
+        {
+            if (index % labelStride != 0 && index != trend.Points.Count - 1)
+            {
+                continue;
+            }
+
+            var x = TrendPointX(index, trend.Points.Count, plotWidth);
+            var label = new TextBlock
+            {
+                Text = trend.Points[index].Label,
+                Width = 58,
+                TextAlignment = TextAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                FontFamily = (FontFamily)FindResource("DashboardFont"),
+                FontSize = 10,
+                Foreground = (Brush)FindResource("DashboardMuted")
+            };
+            Canvas.SetLeft(label, Math.Clamp(x - 29, TrendPlotLeft - 6, width - 58));
+            Canvas.SetTop(label, plotBottom + 10);
+            UsageTrendCanvas.Children.Add(label);
+        }
 
         if (maximum == 0)
         {
             return;
         }
 
+        var accent = TrendAccentColor();
+        if (_trendChartStyle == TrendChartStyle.Bars)
+        {
+            var slotWidth = plotWidth / trend.Points.Count;
+            var barWidth = Math.Clamp(slotWidth * 0.64, 3, 54);
+            for (var index = 0; index < trend.Points.Count; index++)
+            {
+                var barHeight = TrendValue(trend.Points[index]) / maximum * plotHeight;
+                var bar = new Rectangle
+                {
+                    Width = barWidth,
+                    Height = Math.Max(1, barHeight),
+                    RadiusX = 2,
+                    RadiusY = 2,
+                    Fill = new SolidColorBrush(accent)
+                };
+                Canvas.SetLeft(bar, TrendPointX(index, trend.Points.Count, plotWidth) - barWidth / 2);
+                Canvas.SetTop(bar, plotBottom - bar.Height);
+                UsageTrendCanvas.Children.Add(bar);
+            }
+
+            return;
+        }
+
         var linePoints = new PointCollection();
         for (var index = 0; index < trend.Points.Count; index++)
         {
-            var x = index * width / (trend.Points.Count - 1);
-            var y = height - 2 - TrendValue(trend.Points[index]) / maximum * (height - 6);
+            var x = TrendPointX(index, trend.Points.Count, plotWidth);
+            var y = plotBottom - TrendValue(trend.Points[index]) / maximum * plotHeight;
             linePoints.Add(new Point(x, y));
         }
 
-        var areaPoints = new PointCollection { new(0, height) };
+        var areaPoints = new PointCollection { new(TrendPlotLeft, plotBottom) };
         foreach (var point in linePoints)
         {
             areaPoints.Add(point);
         }
-        areaPoints.Add(new Point(width, height));
+        areaPoints.Add(new Point(TrendPlotLeft + plotWidth, plotBottom));
 
         UsageTrendCanvas.Children.Add(new Polygon
         {
             Points = areaPoints,
-            Fill = new SolidColorBrush(Color.FromArgb(22, 46, 139, 87))
+            Fill = new SolidColorBrush(Color.FromArgb(36, accent.R, accent.G, accent.B))
         });
         UsageTrendCanvas.Children.Add(new Polyline
         {
             Points = linePoints,
-            Stroke = new SolidColorBrush(Color.FromRgb(46, 139, 87)),
-            StrokeThickness = 1.6,
+            Stroke = new SolidColorBrush(accent),
+            StrokeThickness = 2,
             StrokeLineJoin = PenLineJoin.Round
         });
     }
 
     private void UsageTrendCanvas_MouseMove(object sender, MouseEventArgs e)
     {
-        if (_trendPoints.Count < 2 || UsageTrendCanvas.ActualWidth <= 1)
+        if (_trendPoints.Count == 0 || UsageTrendCanvas.ActualWidth <= 1)
         {
             return;
         }
 
         var position = e.GetPosition(UsageTrendCanvas);
-        var index = Math.Clamp(
-            (int)Math.Round(position.X / UsageTrendCanvas.ActualWidth * (_trendPoints.Count - 1)),
-            0,
-            _trendPoints.Count - 1);
+        var plotWidth = Math.Max(1, UsageTrendCanvas.ActualWidth - TrendPlotLeft - TrendPlotRight);
+        var relativeX = Math.Clamp((position.X - TrendPlotLeft) / plotWidth, 0, 0.999999);
+        var index = _trendChartStyle == TrendChartStyle.Bars
+            ? Math.Min((int)(relativeX * _trendPoints.Count), _trendPoints.Count - 1)
+            : Math.Clamp((int)Math.Round(relativeX * (_trendPoints.Count - 1)), 0, _trendPoints.Count - 1);
         var point = _trendPoints[index];
-        var x = index * UsageTrendCanvas.ActualWidth / (_trendPoints.Count - 1);
         var height = UsageTrendCanvas.ActualHeight;
+        var plotHeight = Math.Max(1, height - TrendPlotTop - TrendPlotBottom);
+        var plotBottom = TrendPlotTop + plotHeight;
+        var x = TrendPointX(index, _trendPoints.Count, plotWidth);
         var y = _trendMaximum == 0
-            ? height - 2
-            : height - 2 - TrendValue(point) / _trendMaximum * (height - 6);
+            ? plotBottom
+            : plotBottom - TrendValue(point) / _trendMaximum * plotHeight;
 
         var hoverText = $"{point.Label} · {FormatTokens(point.Tokens)} · {point.RequestCount}次 · {FormatCost(point.Pricing)}";
         TrendPeakText.Text = hoverText;
         UsageTrendCanvas.ToolTip = hoverText;
         TrendHoverLine.X1 = x;
         TrendHoverLine.X2 = x;
-        TrendHoverLine.Y1 = 0;
-        TrendHoverLine.Y2 = height;
+        TrendHoverLine.Y1 = TrendPlotTop;
+        TrendHoverLine.Y2 = plotBottom;
         Canvas.SetLeft(TrendHoverDot, x - TrendHoverDot.Width / 2);
         Canvas.SetTop(TrendHoverDot, y - TrendHoverDot.Height / 2);
         TrendHoverCanvas.Visibility = Visibility.Visible;
@@ -369,6 +522,21 @@ public partial class MainWindow : Window
     private double TrendValue(PricingTrendPoint point) =>
         _trendMetric == TrendMetric.Tokens ? point.Tokens : (double)point.Pricing.EstimatedUsd;
 
+    private double TrendPointX(int index, int pointCount, double plotWidth) =>
+        _trendChartStyle == TrendChartStyle.Bars
+            ? TrendPlotLeft + (index + 0.5) * plotWidth / pointCount
+            : TrendPlotLeft + index * plotWidth / Math.Max(1, pointCount - 1);
+
+    private Color TrendAccentColor() =>
+        _trendMetric == TrendMetric.Tokens
+            ? Color.FromRgb(76, 134, 198)
+            : Color.FromRgb(245, 154, 50);
+
+    private string FormatTrendAxisValue(double value) =>
+        _trendMetric == TrendMetric.Tokens
+            ? FormatTokens((long)Math.Round(value))
+            : value >= 100 ? $"${value:0}" : $"${value:0.##}";
+
     private void TrendMetricButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string tag } || !Enum.TryParse(tag, out TrendMetric metric))
@@ -383,10 +551,32 @@ public partial class MainWindow : Window
 
     private void UpdateTrendMetricButtons()
     {
-        var active = new SolidColorBrush(Color.FromRgb(196, 30, 58));
-        var inactive = new SolidColorBrush(Color.FromRgb(153, 153, 153));
-        TrendTokensButton.Foreground = _trendMetric == TrendMetric.Tokens ? active : inactive;
-        TrendCostButton.Foreground = _trendMetric == TrendMetric.Cost ? active : inactive;
+        SetSegmentButtonState(TrendTokensButton, _trendMetric == TrendMetric.Tokens);
+        SetSegmentButtonState(TrendCostButton, _trendMetric == TrendMetric.Cost);
+    }
+
+    private void TrendChartStyleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string tag } || !Enum.TryParse(tag, out TrendChartStyle chartStyle))
+        {
+            return;
+        }
+
+        _trendChartStyle = chartStyle;
+        UpdateTrendChartStyleButtons();
+        DrawUsageTrend();
+    }
+
+    private void UpdateTrendChartStyleButtons()
+    {
+        SetSegmentButtonState(TrendBarsButton, _trendChartStyle == TrendChartStyle.Bars);
+        SetSegmentButtonState(TrendAreaButton, _trendChartStyle == TrendChartStyle.Area);
+    }
+
+    private void SetSegmentButtonState(Button button, bool active)
+    {
+        button.Background = active ? (Brush)FindResource("DashboardPanel") : Brushes.Transparent;
+        button.Foreground = active ? (Brush)FindResource("DashboardText") : (Brush)FindResource("DashboardMuted");
     }
 
     private void ModelRankingButton_Click(object sender, RoutedEventArgs e)
@@ -419,8 +609,9 @@ public partial class MainWindow : Window
             ModelRankingPanel.Children.Add(new TextBlock
             {
                 Text = "当前范围暂无模型记录",
-                FontFamily = (FontFamily)FindResource("BodyFont"),
-                Foreground = (Brush)FindResource("InkClear"),
+                FontFamily = (FontFamily)FindResource("DashboardFont"),
+                FontSize = 12,
+                Foreground = (Brush)FindResource("DashboardMuted"),
                 Margin = new Thickness(0, 8, 0, 5)
             });
         }
@@ -451,38 +642,46 @@ public partial class MainWindow : Window
             ? $"{item.Pricing.EstimatedUsd * 100m / periodPricing.EstimatedUsd:0.#}%"
             : "未计价";
 
-        var grid = new Grid { Margin = new Thickness(0, 8, 0, 8) };
+        var grid = new Grid { Margin = new Thickness(0, 10, 0, 10) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.Children.Add(new TextBlock
         {
             Text = rank.ToString(CultureInfo.InvariantCulture),
-            FontFamily = (FontFamily)FindResource("CalligraphyFont"),
-            FontSize = 17,
+            FontFamily = (FontFamily)FindResource("DashboardMonoFont"),
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
             Foreground = rank <= 3
-                ? (Brush)FindResource("SealRed")
-                : (Brush)FindResource("InkClear"),
+                ? (Brush)FindResource("DashboardOrange")
+                : (Brush)FindResource("DashboardSubtle"),
             VerticalAlignment = VerticalAlignment.Top
         });
 
-        var modelText = new StackPanel();
+        var modelText = new StackPanel
+        {
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            Margin = new Thickness(4, 0, 8, 0)
+        };
         modelText.Children.Add(new TextBlock
         {
             Text = item.Model.Model,
-            FontFamily = (FontFamily)FindResource("SerifFont"),
+            FontFamily = (FontFamily)FindResource("DashboardFont"),
             FontSize = 12,
-            Foreground = (Brush)FindResource("InkStrong"),
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource("DashboardText"),
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
             TextTrimming = TextTrimming.CharacterEllipsis,
-            MaxWidth = 160
+            MaxWidth = 190
         });
         modelText.Children.Add(new TextBlock
         {
-            Text = $"入 {inputPercent:0.#}% / 出 {outputPercent:0.#}%",
+            Text = $"输入 {inputPercent:0.#}% · 输出 {outputPercent:0.#}%",
             Margin = new Thickness(0, 2, 0, 0),
-            FontFamily = (FontFamily)FindResource("BodyFont"),
+            FontFamily = (FontFamily)FindResource("DashboardFont"),
             FontSize = 10,
-            Foreground = (Brush)FindResource("InkClear")
+            Foreground = (Brush)FindResource("DashboardMuted"),
+            ToolTip = $"输入 Token：{FormatTokens(totals.InputTokens)} · 输出 Token：{FormatTokens(totals.OutputTokens)}"
         });
         Grid.SetColumn(modelText, 1);
         grid.Children.Add(modelText);
@@ -490,9 +689,9 @@ public partial class MainWindow : Window
         var values = new TextBlock
         {
             Text = $"{FormatTokens(totals.TotalTokens)}\n{totals.RequestCount}次 · 消耗 {costShare}",
-            FontFamily = (FontFamily)FindResource("BodyFont"),
+            FontFamily = (FontFamily)FindResource("DashboardFont"),
             FontSize = 11,
-            Foreground = (Brush)FindResource("LandscapeGreen"),
+            Foreground = (Brush)FindResource("DashboardGreen"),
             TextAlignment = TextAlignment.Right,
             ToolTip = JoinTooltip(FormatCost(item.Pricing), BuildCostTooltip(item.Pricing))
         };
@@ -501,7 +700,7 @@ public partial class MainWindow : Window
 
         return new Border
         {
-            BorderBrush = new SolidColorBrush(Color.FromArgb(24, 26, 26, 26)),
+            BorderBrush = (Brush)FindResource("DashboardBorder"),
             BorderThickness = new Thickness(0, 0, 0, 1),
             Child = grid
         };
@@ -559,7 +758,7 @@ public partial class MainWindow : Window
         CustomStartDateTextBox.Text = start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         CustomEndDateTextBox.Text = end.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         CustomRangeStatusText.Text = "格式：2026-07-30";
-        CustomRangeStatusText.Foreground = (Brush)FindResource("InkClear");
+        CustomRangeStatusText.Foreground = (Brush)FindResource("DashboardMuted");
         CustomRangePopup.IsOpen = true;
     }
 
@@ -660,16 +859,16 @@ public partial class MainWindow : Window
     {
         CustomRangeStatusText.Text = message;
         CustomRangeStatusText.Foreground = neutral
-            ? (Brush)FindResource("InkClear")
-            : (Brush)FindResource("SealRed");
+            ? (Brush)FindResource("DashboardMuted")
+            : (Brush)FindResource("DashboardOrange");
     }
 
     private void UpdatePeriodButtons()
     {
-        var activeBackground = Brushes.Transparent;
+        var activeBackground = new SolidColorBrush(Color.FromRgb(231, 238, 226));
         var inactiveBackground = Brushes.Transparent;
-        var activeForeground = new SolidColorBrush(Color.FromRgb(196, 30, 58));
-        var inactiveForeground = new SolidColorBrush(Color.FromRgb(102, 102, 102));
+        var activeForeground = (Brush)FindResource("DashboardGreen");
+        var inactiveForeground = (Brush)FindResource("DashboardMuted");
 
         SetPeriodButtonState(TodayButton, _customRange is null && _period == UsagePeriod.Today, activeBackground, inactiveBackground, activeForeground, inactiveForeground);
         SetPeriodButtonState(WeekButton, _customRange is null && _period == UsagePeriod.Week, activeBackground, inactiveBackground, activeForeground, inactiveForeground);
@@ -714,10 +913,10 @@ public partial class MainWindow : Window
         var text = new TextBlock
         {
             Text = $"+{FormatTokens(currentTokens - previousTokens.Value)}",
-            FontFamily = (FontFamily)FindResource("BodyFont"),
+            FontFamily = (FontFamily)FindResource("DashboardMonoFont"),
             FontSize = 13,
             FontWeight = FontWeights.Bold,
-            Foreground = (Brush)FindResource("LandscapeGreen"),
+            Foreground = (Brush)FindResource("DashboardGreen"),
             Opacity = 0,
             RenderTransform = new TranslateTransform()
         };
@@ -840,6 +1039,9 @@ public partial class MainWindow : Window
         MinHeight = _isMiniMode ? MiniHeight : NormalHeight;
         Width = _isMiniMode ? MiniWidth : NormalWidth;
         Height = _isMiniMode ? MiniHeight : NormalHeight;
+        ShellBorder.CornerRadius = new CornerRadius(14);
+        ShellBorder.Background = (Brush)FindResource("DashboardBackground");
+        ShellBorder.BorderBrush = (Brush)FindResource("DashboardBorder");
         if (!_isMiniMode)
         {
             MiniIncreaseCanvas.Children.Clear();
@@ -854,6 +1056,19 @@ public partial class MainWindow : Window
     {
         Tokens,
         Cost
+    }
+
+    private enum TrendChartStyle
+    {
+        Bars,
+        Area
+    }
+
+    private enum NormalTab
+    {
+        Overview,
+        Trend,
+        Model
     }
 
     private sealed record ModelRankingEntry(

@@ -1,5 +1,5 @@
-#define MyAppName "TokenFloat"
-#define MyAppVersion "2.0.0"
+﻿#define MyAppName "TokenFloat"
+#define MyAppVersion "2.0.1"
 #define MyAppPublisher "TokenFloat"
 #define MyAppExeName "TokenFloat.exe"
 
@@ -49,7 +49,7 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{a
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; Flags: nowait postinstall
+Filename: "{app}\{#MyAppExeName}"; Description: "鍚姩 {#MyAppName}"; Flags: nowait postinstall
 
 [Code]
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

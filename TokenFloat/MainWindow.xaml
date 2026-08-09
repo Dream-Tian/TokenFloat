@@ -3,10 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="TokenFloat"
         Icon="Assets/tokenfloat-cat.png"
-        Width="370"
-        Height="430"
-        MinWidth="370"
-        MinHeight="430"
+        Width="500"
+        Height="305"
+        MinWidth="500"
+        MinHeight="305"
         FontFamily="楷体"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -19,6 +19,8 @@
         <FontFamily x:Key="BodyFont">楷体</FontFamily>
         <FontFamily x:Key="SealFont">华文隶书</FontFamily>
         <FontFamily x:Key="SerifFont">Noto Serif SC</FontFamily>
+        <FontFamily x:Key="DashboardFont">Noto Serif SC, KaiTi</FontFamily>
+        <FontFamily x:Key="DashboardMonoFont">Noto Serif SC, KaiTi</FontFamily>
 
         <SolidColorBrush x:Key="InkDark" Color="#1A1A1A" />
         <SolidColorBrush x:Key="InkStrong" Color="#333333" />
@@ -27,6 +29,16 @@
         <SolidColorBrush x:Key="SealRed" Color="#C41E3A" />
         <SolidColorBrush x:Key="LandscapeGreen" Color="#2E8B57" />
         <SolidColorBrush x:Key="PaperWhite" Color="#F8F5F0" />
+        <SolidColorBrush x:Key="DashboardBackground" Color="#FAFBF9" />
+        <SolidColorBrush x:Key="DashboardPanel" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="DashboardBorder" Color="#DDE1DA" />
+        <SolidColorBrush x:Key="DashboardText" Color="#20221F" />
+        <SolidColorBrush x:Key="DashboardMuted" Color="#7B8178" />
+        <SolidColorBrush x:Key="DashboardSubtle" Color="#A5AAA2" />
+        <SolidColorBrush x:Key="DashboardGreen" Color="#5F7F4F" />
+        <SolidColorBrush x:Key="DashboardBlue" Color="#4C86C6" />
+        <SolidColorBrush x:Key="DashboardPink" Color="#E77298" />
+        <SolidColorBrush x:Key="DashboardOrange" Color="#F59A32" />
 
         <DrawingBrush x:Key="PaperTexture"
                       TileMode="Tile"
@@ -48,16 +60,16 @@
             <Setter Property="Width" Value="28" />
             <Setter Property="Height" Value="28" />
             <Setter Property="Margin" Value="5,0,0,0" />
-            <Setter Property="Foreground" Value="{StaticResource InkClear}" />
+            <Setter Property="Foreground" Value="{StaticResource DashboardMuted}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="FontFamily" Value="{StaticResource SerifFont}" />
-            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontFamily" Value="{StaticResource DashboardFont}" />
+            <Setter Property="FontSize" Value="14" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="14">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                     </ControlTemplate>
@@ -65,44 +77,47 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Foreground" Value="{StaticResource SealRed}" />
-                    <Setter Property="Background" Value="#0DC41E3A" />
+                    <Setter Property="Foreground" Value="{StaticResource DashboardText}" />
+                    <Setter Property="Background" Value="#EEF0EC" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style x:Key="PeriodButtonStyle" TargetType="Button">
-            <Setter Property="Height" Value="38" />
-            <Setter Property="Foreground" Value="{StaticResource InkLight}" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinWidth" Value="52" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Foreground" Value="{StaticResource DashboardMuted}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="FontFamily" Value="{StaticResource CalligraphyFont}" />
-            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontFamily" Value="{StaticResource DashboardFont}" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Grid Background="{TemplateBinding Background}">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Grid>
+                        </Border>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
 
         <Style x:Key="TrendMetricButtonStyle" TargetType="Button">
-            <Setter Property="Height" Value="17" />
-            <Setter Property="MinWidth" Value="25" />
-            <Setter Property="Padding" Value="2,0" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinWidth" Value="48" />
+            <Setter Property="Padding" Value="9,0" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="FontFamily" Value="{StaticResource BodyFont}" />
-            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{StaticResource DashboardMuted}" />
+            <Setter Property="FontFamily" Value="{StaticResource DashboardFont}" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                     </ControlTemplate>
@@ -110,19 +125,19 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#102E8B57" />
+                    <Setter Property="Background" Value="#E9ECE7" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style x:Key="InkActionButtonStyle" TargetType="Button">
-            <Setter Property="Height" Value="29" />
+            <Setter Property="Height" Value="32" />
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="#49333333" />
+            <Setter Property="BorderBrush" Value="{StaticResource DashboardBorder}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Foreground" Value="{StaticResource InkLight}" />
-            <Setter Property="FontFamily" Value="{StaticResource BodyFont}" />
+            <Setter Property="Foreground" Value="{StaticResource DashboardMuted}" />
+            <Setter Property="FontFamily" Value="{StaticResource DashboardFont}" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
@@ -133,13 +148,13 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6">
+                                CornerRadius="5">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ActionBorder" Property="Background" Value="#142E8B57" />
-                                <Setter TargetName="ActionBorder" Property="BorderBrush" Value="#6A2E8B57" />
+                                <Setter TargetName="ActionBorder" Property="Background" Value="#F1F3EF" />
+                                <Setter TargetName="ActionBorder" Property="BorderBrush" Value="#BCC5B7" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -151,14 +166,14 @@
             <Setter Property="Height" Value="32" />
             <Setter Property="Padding" Value="9,0" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Background" Value="#B8F8F5F0" />
-            <Setter Property="BorderBrush" Value="#49333333" />
+            <Setter Property="Background" Value="{StaticResource DashboardPanel}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DashboardBorder}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Foreground" Value="{StaticResource InkStrong}" />
-            <Setter Property="FontFamily" Value="{StaticResource SerifFont}" />
+            <Setter Property="Foreground" Value="{StaticResource DashboardText}" />
+            <Setter Property="FontFamily" Value="{StaticResource DashboardFont}" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="CaretBrush" Value="{StaticResource SealRed}" />
-            <Setter Property="SelectionBrush" Value="#4C2E8B57" />
+            <Setter Property="CaretBrush" Value="{StaticResource DashboardGreen}" />
+            <Setter Property="SelectionBrush" Value="#4C8AA174" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
@@ -166,14 +181,14 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6">
+                                CornerRadius="5">
                             <ScrollViewer x:Name="PART_ContentHost"
                                           Margin="{TemplateBinding Padding}"
                                           VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="DateBorder" Property="BorderBrush" Value="#7A2E8B57" />
+                                <Setter TargetName="DateBorder" Property="BorderBrush" Value="#7A5F7F4F" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -266,70 +281,23 @@
         </ControlTemplate>
     </Window.Resources>
 
-    <Border Margin="8"
-            CornerRadius="24"
-            Background="{StaticResource PaperWhite}"
-            BorderBrush="#381A1A1A"
+    <Border x:Name="ShellBorder" Margin="8"
+            CornerRadius="14"
+            ClipToBounds="True"
+            Background="{StaticResource DashboardBackground}"
+            BorderBrush="{StaticResource DashboardBorder}"
             BorderThickness="1">
         <Grid>
-        <Grid x:Name="NormalContent" ClipToBounds="True">
-            <Grid.Clip>
-                <RectangleGeometry Rect="0,0,354,414" RadiusX="23" RadiusY="23" />
-            </Grid.Clip>
-
-            <Rectangle Fill="{StaticResource PaperTexture}" IsHitTestVisible="False" />
-
-            <Canvas IsHitTestVisible="False">
-                <Ellipse Width="190" Height="155" Canvas.Left="245" Canvas.Top="-54" Opacity="0.17">
-                    <Ellipse.Fill>
-                        <RadialGradientBrush GradientOrigin="0.42,0.48">
-                            <GradientStop Color="#88333333" Offset="0" />
-                            <GradientStop Color="#22333333" Offset="0.58" />
-                            <GradientStop Color="#00333333" Offset="1" />
-                        </RadialGradientBrush>
-                    </Ellipse.Fill>
-                    <Ellipse.Effect>
-                        <BlurEffect Radius="14" />
-                    </Ellipse.Effect>
-                </Ellipse>
-
-                <Path Data="M -20,352 C 35,310 67,337 112,300 C 155,265 188,322 229,287 C 273,250 322,310 401,258 L 401,406 L -20,406 Z"
-                      Opacity="0.14">
-                    <Path.Fill>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Color="#666666" Offset="0" />
-                            <GradientStop Color="#12666666" Offset="0.65" />
-                            <GradientStop Color="#00666666" Offset="1" />
-                        </LinearGradientBrush>
-                    </Path.Fill>
-                    <Path.Effect>
-                        <BlurEffect Radius="7" />
-                    </Path.Effect>
-                </Path>
-
-                <Path Data="M -15,376 C 54,352 93,382 145,342 C 185,309 231,365 277,331 C 319,299 354,339 406,311 L 406,406 L -15,406 Z"
-                      Opacity="0.18">
-                    <Path.Fill>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                            <GradientStop Color="#2E8B57" Offset="0" />
-                            <GradientStop Color="#332E8B57" Offset="0.55" />
-                            <GradientStop Color="#002E8B57" Offset="1" />
-                        </LinearGradientBrush>
-                    </Path.Fill>
-                </Path>
-
-                <Path Data="M 20,129 C 72,123 116,135 172,126 C 225,117 277,130 342,119"
-                      Stroke="#301A1A1A" StrokeThickness="1.2" StrokeDashArray="18,5,2,7" />
-                <Ellipse Width="7" Height="5" Fill="#401A1A1A" Canvas.Left="340" Canvas.Top="116" />
-            </Canvas>
-
-            <Grid Margin="21,15,21,14">
+        <Grid x:Name="NormalContent"
+              ClipToBounds="True"
+              Background="{StaticResource DashboardBackground}"
+              TextElement.FontFamily="{StaticResource DashboardFont}">
+            <Grid Margin="12">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="65" />
-                    <RowDefinition Height="42" />
-                    <RowDefinition Height="125" />
-                    <RowDefinition Height="48" />
-                    <RowDefinition Height="94" />
+                    <RowDefinition Height="34" />
+                    <RowDefinition Height="31" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="0" />
                 </Grid.RowDefinitions>
 
                 <Grid Grid.Row="0" MouseLeftButtonDown="DragArea_MouseLeftButtonDown">
@@ -338,173 +306,296 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-
-                    <Border Width="36" Height="36" Margin="0,1,10,0" VerticalAlignment="Top"
-                            BorderBrush="#551A1A1A" BorderThickness="1" CornerRadius="4"
-                            ClipToBounds="True">
-                        <Image Source="Assets/tokenfloat-cat.png" Stretch="UniformToFill" />
-                    </Border>
-
-                    <StackPanel Grid.Column="1">
-                        <TextBlock Text="用量" FontFamily="{StaticResource CalligraphyFont}"
-                                   FontSize="27" Foreground="{StaticResource InkDark}" />
-                        <TextBlock Text="N E W A P I  ·  U S A G E  ·  R E C O R D S" Margin="2,-2,0,0"
-                                   FontFamily="{StaticResource SerifFont}" FontSize="9"
-                                   FontWeight="Light"
-                                   Foreground="{StaticResource InkClear}" />
+                    <Image Width="24" Height="24" Source="Assets/tokenfloat-cat.png" Stretch="UniformToFill" />
+                    <StackPanel Grid.Column="1" Margin="9,0,0,0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="TokenFloat" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource DashboardText}" />
+                        <TextBlock Text="NEWAPI USAGE" Margin="10,1,0,0" FontSize="10"
+                                   Foreground="{StaticResource DashboardSubtle}" />
                     </StackPanel>
-
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
-                        <Button Style="{StaticResource WindowButtonStyle}" Content="—" Click="MinimizeButton_Click"/>
-                        <Button Style="{StaticResource WindowButtonStyle}" Content="×" Click="CloseButton_Click" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <Button Style="{StaticResource WindowButtonStyle}" Content="—" Click="MinimizeButton_Click" ToolTip="最小化到托盘" />
+                        <Button Style="{StaticResource WindowButtonStyle}" Content="×" Click="CloseButton_Click" ToolTip="关闭到托盘" />
                     </StackPanel>
                 </Grid>
 
-                <Grid Grid.Row="1">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="62" />
-                        <ColumnDefinition Width="34" />
-                    </Grid.ColumnDefinitions>
-                    <Button x:Name="TodayButton" Grid.Column="0" Style="{StaticResource PeriodButtonStyle}"
-                            Content="今日" Tag="Today" Click="PeriodButton_Click" />
-                    <Button x:Name="WeekButton" Grid.Column="1" Style="{StaticResource PeriodButtonStyle}"
-                            Content="本周" Tag="Week" Click="PeriodButton_Click" />
-                    <Button x:Name="MonthButton" Grid.Column="2" Style="{StaticResource PeriodButtonStyle}"
-                            Content="本月" Tag="Month" Click="PeriodButton_Click" />
-                    <Button x:Name="CustomRangeButton" Grid.Column="3"
-                            Style="{StaticResource PeriodButtonStyle}"
-                            Content="自定" FontSize="16"
-                            Click="CustomRangeButton_Click"
-                            ToolTip="选择任意起止日期" />
-                    <Button x:Name="ModelRankingButton" Grid.Column="4"
-                            Style="{StaticResource PeriodButtonStyle}"
-                            Content="榜" FontSize="16"
-                            Click="ModelRankingButton_Click"
-                            ToolTip="查看当前周期模型排行榜" />
-                </Grid>
-
-                <Grid Grid.Row="2" Margin="5,4,2,0">
-                    <Ellipse Width="112" Height="96" HorizontalAlignment="Left" Margin="-12,1,0,0" Opacity="0.1">
-                        <Ellipse.Fill>
-                            <RadialGradientBrush>
-                                <GradientStop Color="#AA333333" Offset="0" />
-                                <GradientStop Color="#00333333" Offset="1" />
-                            </RadialGradientBrush>
-                        </Ellipse.Fill>
-                        <Ellipse.Effect>
-                            <BlurEffect Radius="9" />
-                        </Ellipse.Effect>
-                    </Ellipse>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock x:Name="PeriodTitleText" Text="今日所耗"
-                                   FontFamily="{StaticResource CalligraphyFont}" FontSize="16"
-                                   Foreground="{StaticResource InkLight}" />
-                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                            <TextBlock x:Name="TotalTokensText" Text="--"
-                                       FontFamily="{StaticResource BodyFont}" FontSize="37"
-                                       FontWeight="Bold" Foreground="{StaticResource InkDark}"
-                                       ToolTip="NewAPI 日志中的总 Token；已去除重复请求" />
-                            <TextBlock x:Name="PrimaryUnitText" Text=" Token" Margin="7,0,0,7" VerticalAlignment="Bottom"
-                                       FontFamily="{StaticResource SerifFont}" FontSize="10"
-                                       Foreground="{StaticResource InkClear}" />
-                        </StackPanel>
-                        <TextBlock x:Name="ComparisonText"
-                                   Margin="1,-2,0,0"
-                                   FontFamily="{StaticResource BodyFont}"
-                                   FontSize="11"
-                                   Foreground="{StaticResource InkClear}" />
+                <Border Grid.Row="1" Background="#F2F4F0" BorderBrush="{StaticResource DashboardBorder}"
+                        BorderThickness="1" CornerRadius="6" Padding="2">
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="OverviewTabButton" Content="总览" Tag="Overview"
+                                Style="{StaticResource PeriodButtonStyle}" Click="NormalTabButton_Click" />
+                        <Button x:Name="TrendTabButton" Content="趋势" Tag="Trend"
+                                Style="{StaticResource PeriodButtonStyle}" Click="NormalTabButton_Click" />
+                        <Button x:Name="ModelTabButton" Content="模型" Tag="Model"
+                                Style="{StaticResource PeriodButtonStyle}" Click="NormalTabButton_Click" />
                     </StackPanel>
-                </Grid>
+                </Border>
 
-                <Grid Grid.Row="3" Margin="2,0,2,1">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                ToolTip="所选周期内 NewAPI 消费日志请求数">
-                        <TextBlock Text="次数" HorizontalAlignment="Center"
-                                   FontFamily="{StaticResource CalligraphyFont}" FontSize="13"
-                                   Foreground="{StaticResource InkClear}" />
-                        <TextBlock x:Name="RequestCountText" Text="--" HorizontalAlignment="Center"
-                                   FontFamily="{StaticResource BodyFont}" FontSize="15"
-                                   Foreground="{StaticResource InkStrong}" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                ToolTip="平均 RPM = 请求次数 ÷ 所选周期截至当前经过的分钟数">
-                        <TextBlock Text="平均 RPM" HorizontalAlignment="Center"
-                                   FontFamily="{StaticResource CalligraphyFont}" FontSize="13"
-                                   Foreground="{StaticResource InkClear}" />
-                        <TextBlock x:Name="AverageRpmText" Text="--" HorizontalAlignment="Center"
-                                   FontFamily="{StaticResource BodyFont}" FontSize="15"
-                                   Foreground="{StaticResource SealRed}" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                ToolTip="平均 TPM = 原始 Token 用量 ÷ 所选周期截至当前经过的分钟数">
-                        <TextBlock Text="平均 TPM" HorizontalAlignment="Center"
-                                   FontFamily="{StaticResource CalligraphyFont}" FontSize="13"
-                                   Foreground="{StaticResource InkClear}" />
-                        <TextBlock x:Name="AverageTpmText" Text="--" HorizontalAlignment="Center"
-                                   FontFamily="{StaticResource BodyFont}" FontSize="15"
-                                   Foreground="{StaticResource LandscapeGreen}" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="3" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                ToolTip="按 NewAPI 日志已扣额度折算">
-                        <TextBlock Text="消耗" HorizontalAlignment="Center"
-                                   FontFamily="{StaticResource CalligraphyFont}" FontSize="12"
-                                   Foreground="{StaticResource InkClear}" />
-                        <TextBlock x:Name="EstimatedCostText" Text="--" HorizontalAlignment="Center"
-                                   FontFamily="{StaticResource BodyFont}" FontSize="14"
-                                   Foreground="{StaticResource SealRed}" />
-                    </StackPanel>
-                </Grid>
-
-                <Grid Grid.Row="4" Margin="2,6,2,0">
+                <Grid x:Name="OverviewPage" Grid.Row="2">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="17" />
-                        <RowDefinition Height="*" />
+                        <RowDefinition Height="112" />
+                        <RowDefinition Height="42" />
                     </Grid.RowDefinitions>
+                <Border x:Name="MetricSummaryBorder" Grid.Row="0" Background="{StaticResource DashboardPanel}"
+                        BorderBrush="{StaticResource DashboardBorder}" BorderThickness="1" CornerRadius="8">
                     <Grid>
-                        <TextBlock x:Name="TrendTitleText" Text="今日 · 每时" FontFamily="{StaticResource CalligraphyFont}"
-                                   FontSize="12" Foreground="{StaticResource InkClear}" />
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button x:Name="TrendTokensButton" Content="Token" Tag="Tokens"
-                                    Style="{StaticResource TrendMetricButtonStyle}"
-                                    Click="TrendMetricButton_Click" />
-                            <Button x:Name="TrendCostButton" Content="消耗" Tag="Cost"
-                                    Style="{StaticResource TrendMetricButtonStyle}"
-                                    Click="TrendMetricButton_Click" />
-                            <TextBlock x:Name="TrendPeakText" Text="--" Margin="7,0,0,0"
-                                       VerticalAlignment="Center"
-                                       FontFamily="{StaticResource BodyFont}" FontSize="10"
-                                       Foreground="{StaticResource LandscapeGreen}" />
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Grid Grid.Column="0" Margin="8,8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="30" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="20" />
+                            </Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="22" Height="22" Background="#EDF5FB" CornerRadius="6">
+                                    <TextBlock Text="#" FontSize="12" Foreground="{StaticResource DashboardBlue}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="总请求" Margin="5,0,0,0" FontSize="10"
+                                           Foreground="{StaticResource DashboardMuted}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock x:Name="RequestCountText" Grid.Row="1" Text="--" Margin="0,8,0,0"
+                                       FontFamily="{StaticResource DashboardMonoFont}" FontSize="17" FontWeight="SemiBold"
+                                       Foreground="{StaticResource DashboardText}"
+                                       ToolTip="所选周期内 NewAPI 消费日志请求数" />
+                            <TextBlock Grid.Row="2" Text="统计次数" FontSize="9" Foreground="{StaticResource DashboardSubtle}" />
+                        </Grid>
+                        <Border Grid.Column="0" Width="1" HorizontalAlignment="Right" Background="{StaticResource DashboardBorder}" />
+
+                        <Grid Grid.Column="1" Margin="8,8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="30" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="20" />
+                            </Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="22" Height="22" Background="#EEF4EA" CornerRadius="6">
+                                    <TextBlock Text="$" FontSize="12" Foreground="{StaticResource DashboardGreen}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="总消耗" Margin="5,0,0,0" FontSize="10"
+                                           Foreground="{StaticResource DashboardMuted}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock x:Name="EstimatedCostText" Grid.Row="1" Text="--" Margin="0,8,0,0"
+                                       FontFamily="{StaticResource DashboardMonoFont}" FontSize="17" FontWeight="SemiBold"
+                                       Foreground="{StaticResource DashboardText}" />
+                            <TextBlock Grid.Row="2" Text="NewAPI 已扣额度" FontSize="9" Foreground="{StaticResource DashboardSubtle}" />
+                        </Grid>
+                        <Border Grid.Column="1" Width="1" HorizontalAlignment="Right" Background="{StaticResource DashboardBorder}" />
+
+                        <Grid Grid.Column="2" Margin="8,8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="30" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="20" />
+                            </Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="22" Height="22" Background="#FBEFF3" CornerRadius="6">
+                                    <TextBlock Text="T" FontSize="11" FontWeight="Bold" Foreground="{StaticResource DashboardPink}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="总 TOKEN 数" Margin="5,0,0,0" FontSize="10"
+                                           Foreground="{StaticResource DashboardMuted}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Margin="0,8,0,0" Orientation="Horizontal">
+                                <TextBlock x:Name="TotalTokensText" Text="--"
+                                           FontFamily="{StaticResource DashboardMonoFont}" FontSize="17" FontWeight="SemiBold"
+                                           Foreground="{StaticResource DashboardText}"
+                                           ToolTip="NewAPI 日志中的总 Token；已去除重复请求" />
+                                <TextBlock x:Name="PrimaryUnitText" Text=" Token" Visibility="Collapsed" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="2" Text="统计 Token 数" FontSize="9" Foreground="{StaticResource DashboardSubtle}" />
+                        </Grid>
+                        <Border Grid.Column="2" Width="1" HorizontalAlignment="Right" Background="{StaticResource DashboardBorder}" />
+
+                        <Grid Grid.Column="3" Margin="8,8" ToolTip="平均 RPM = 请求次数 ÷ 所选周期截至当前经过的分钟数">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="30" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="20" />
+                            </Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="22" Height="22" Background="#EEF4EA" CornerRadius="6">
+                                    <TextBlock Text="↗" FontSize="11" Foreground="{StaticResource DashboardGreen}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="平均 RPM" Margin="5,0,0,0" FontSize="10"
+                                           Foreground="{StaticResource DashboardMuted}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock x:Name="AverageRpmText" Grid.Row="1" Text="--" Margin="0,8,0,0"
+                                       FontFamily="{StaticResource DashboardMonoFont}" FontSize="17" FontWeight="SemiBold"
+                                       Foreground="{StaticResource DashboardText}" />
+                            <TextBlock Grid.Row="2" Text="每分钟请求数" FontSize="9" Foreground="{StaticResource DashboardSubtle}" />
+                        </Grid>
+                        <Border Grid.Column="3" Width="1" HorizontalAlignment="Right" Background="{StaticResource DashboardBorder}" />
+
+                        <Grid Grid.Column="4" Margin="8,8" ToolTip="平均 TPM = 原始 Token 用量 ÷ 所选周期截至当前经过的分钟数">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="30" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="20" />
+                            </Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="22" Height="22" Background="#FFF4E7" CornerRadius="6">
+                                    <TextBlock Text="⚡" FontSize="11" Foreground="{StaticResource DashboardOrange}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="平均 TPM" Margin="5,0,0,0" FontSize="10"
+                                           Foreground="{StaticResource DashboardMuted}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock x:Name="AverageTpmText" Grid.Row="1" Text="--" Margin="0,8,0,0"
+                                       FontFamily="{StaticResource DashboardMonoFont}" FontSize="17" FontWeight="SemiBold"
+                                       Foreground="{StaticResource DashboardText}" />
+                            <TextBlock Grid.Row="2" Text="每分钟 Token 数" FontSize="9" Foreground="{StaticResource DashboardSubtle}" />
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <Border x:Name="OverviewRangeBorder" Grid.Row="1" Background="{StaticResource DashboardPanel}"
+                        BorderBrush="{StaticResource DashboardBorder}" BorderThickness="1" CornerRadius="8">
+                    <Grid Margin="14,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="1" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Width="26" Height="26" Background="#EEF4EA" CornerRadius="6">
+                                <TextBlock Text="◷" FontSize="13" Foreground="{StaticResource DashboardGreen}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Text="统计范围" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource DashboardText}" VerticalAlignment="Center" />
                         </StackPanel>
+                        <Border Grid.Column="1" Margin="12,0" Padding="2" VerticalAlignment="Center"
+                                Background="#F2F4F0" BorderBrush="{StaticResource DashboardBorder}" BorderThickness="1" CornerRadius="7">
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="TodayButton" Style="{StaticResource PeriodButtonStyle}" Content="今日" Tag="Today" Click="PeriodButton_Click" />
+                                <Button x:Name="WeekButton" Style="{StaticResource PeriodButtonStyle}" Content="本周" Tag="Week" Click="PeriodButton_Click" />
+                                <Button x:Name="MonthButton" Style="{StaticResource PeriodButtonStyle}" Content="本月" Tag="Month" Click="PeriodButton_Click" />
+                                <Button x:Name="CustomRangeButton" Style="{StaticResource PeriodButtonStyle}" Content="自定"
+                                        Click="CustomRangeButton_Click" ToolTip="选择任意起止日期" />
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="2" Height="24" Background="{StaticResource DashboardBorder}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="3" Margin="14,0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="PeriodTitleText" Text="今日所耗" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource DashboardText}" VerticalAlignment="Center" />
+                            <TextBlock x:Name="ComparisonText" Margin="10,0,0,0" FontSize="11"
+                                       Foreground="{StaticResource DashboardMuted}" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Button x:Name="ModelRankingButton" Grid.Column="4" Height="32" Padding="12,0"
+                                Style="{StaticResource InkActionButtonStyle}" Content="模型排行"
+                                Click="ModelRankingButton_Click" ToolTip="查看当前周期模型排行榜" />
                     </Grid>
-                    <Grid Grid.Row="1" ClipToBounds="True">
-                        <Canvas x:Name="UsageTrendCanvas"
-                                Background="Transparent"
-                                MouseMove="UsageTrendCanvas_MouseMove"
-                                MouseLeave="UsageTrendCanvas_MouseLeave"
-                                ToolTip="移动鼠标查看当前周期的 Token 和 NewAPI 消耗" />
-                        <Canvas x:Name="TrendHoverCanvas" IsHitTestVisible="False" Visibility="Collapsed">
-                            <Line x:Name="TrendHoverLine" Stroke="#662E8B57" StrokeThickness="1"
-                                  StrokeDashArray="2,2" />
-                            <Ellipse x:Name="TrendHoverDot" Width="6" Height="6"
-                                     Fill="{StaticResource PaperWhite}"
-                                     Stroke="{StaticResource LandscapeGreen}" StrokeThickness="1.5" />
-                        </Canvas>
-                    </Grid>
+                </Border>
+
                 </Grid>
 
+                <Grid x:Name="TrendPage" Grid.Row="2" Visibility="Collapsed">
+                <Border Background="{StaticResource DashboardPanel}"
+                        BorderBrush="{StaticResource DashboardBorder}" BorderThickness="1" CornerRadius="8">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="56" />
+                            <RowDefinition Height="1" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid Margin="16,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border Width="30" Height="30" Background="#EEF4EA" CornerRadius="7" VerticalAlignment="Center">
+                                <TextBlock Text="▥" FontSize="14" Foreground="{StaticResource DashboardGreen}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="9,0,4,0" MaxWidth="205"
+                                        Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="消费趋势" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource DashboardText}" />
+                                <TextBlock x:Name="TrendTitleText" Text="今日 · 每时" Margin="10,1,0,0" FontSize="11"
+                                           Foreground="{StaticResource DashboardMuted}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock x:Name="TrendTotalText" Text="总计 --" Margin="12,1,0,0" FontSize="11"
+                                           Foreground="{StaticResource DashboardSubtle}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock x:Name="TrendPeakText" Text="--" Margin="12,1,0,0" FontSize="11"
+                                           Foreground="{StaticResource DashboardGreen}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Padding="2" Background="#F2F4F0" BorderBrush="{StaticResource DashboardBorder}"
+                                        BorderThickness="1" CornerRadius="7">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button x:Name="TrendTokensButton" Content="Token" Tag="Tokens"
+                                                Style="{StaticResource TrendMetricButtonStyle}" Click="TrendMetricButton_Click" />
+                                        <Button x:Name="TrendCostButton" Content="消耗" Tag="Cost"
+                                                Style="{StaticResource TrendMetricButtonStyle}" Click="TrendMetricButton_Click" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Margin="8,0,0,0" Padding="2" Background="#F2F4F0" BorderBrush="{StaticResource DashboardBorder}"
+                                        BorderThickness="1" CornerRadius="7">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button x:Name="TrendBarsButton" Content="柱状" Tag="Bars"
+                                                Style="{StaticResource TrendMetricButtonStyle}" Click="TrendChartStyleButton_Click" />
+                                        <Button x:Name="TrendAreaButton" Content="面积" Tag="Area"
+                                                Style="{StaticResource TrendMetricButtonStyle}" Click="TrendChartStyleButton_Click" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                        <Border Grid.Row="1" Background="{StaticResource DashboardBorder}" />
+                        <Grid Grid.Row="2" Margin="12,6,12,10" ClipToBounds="True">
+                            <Canvas x:Name="UsageTrendCanvas" Background="Transparent"
+                                    MouseMove="UsageTrendCanvas_MouseMove"
+                                    MouseLeave="UsageTrendCanvas_MouseLeave"
+                                    ToolTip="查看当前时段的 Token、请求数和 NewAPI 消耗" />
+                            <Canvas x:Name="TrendHoverCanvas" IsHitTestVisible="False" Visibility="Collapsed">
+                                <Line x:Name="TrendHoverLine" Stroke="#80868D83" StrokeThickness="1" StrokeDashArray="3,3" />
+                                <Ellipse x:Name="TrendHoverDot" Width="7" Height="7"
+                                         Fill="{StaticResource DashboardPanel}" Stroke="{StaticResource DashboardGreen}" StrokeThickness="2" />
+                            </Canvas>
+                        </Grid>
+                    </Grid>
+                </Border>
+                </Grid>
+
+                <Grid x:Name="ModelPage" Grid.Row="2" Visibility="Collapsed">
+                    <Border Background="{StaticResource DashboardPanel}"
+                            BorderBrush="{StaticResource DashboardBorder}" BorderThickness="1" CornerRadius="8">
+                        <Grid Margin="14,10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="30" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid>
+                                <TextBlock x:Name="ModelPageTitle" Text="模型用量" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource DashboardText}" />
+                                <TextBlock x:Name="ModelPageSummary" HorizontalAlignment="Right" FontSize="10"
+                                           Foreground="{StaticResource DashboardMuted}" />
+                            </Grid>
+                            <TextBlock Grid.Row="1" Text="Token · 请求 · 消耗占比 · 输入/输出占比" Margin="0,3,0,7"
+                                       FontSize="10" Foreground="{StaticResource DashboardMuted}" />
+                            <ScrollViewer Grid.Row="2" MaxHeight="128"
+                                          Template="{StaticResource InkScrollViewerTemplate}"
+                                          Padding="0,0,2,0"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel x:Name="ModelPagePanel" />
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </Grid>
             </Grid>
 
             <Popup x:Name="CustomRangePopup"
@@ -512,10 +603,10 @@
                    Placement="Bottom"
                    StaysOpen="False"
                    AllowsTransparency="True">
-                <Border Width="310" Padding="16,13"
-                        Background="{StaticResource PaperWhite}"
-                        BorderBrush="#661A1A1A" BorderThickness="1"
-                        CornerRadius="12">
+                <Border Width="340" Padding="18,16"
+                        Background="{StaticResource DashboardPanel}"
+                        BorderBrush="{StaticResource DashboardBorder}" BorderThickness="1"
+                        CornerRadius="8">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -525,14 +616,14 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <TextBlock Text="自定日期"
-                                   FontFamily="{StaticResource CalligraphyFont}"
-                                   FontSize="18"
-                                   Foreground="{StaticResource InkDark}" />
+                                   FontFamily="{StaticResource DashboardFont}"
+                                   FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{StaticResource DashboardText}" />
                         <TextBlock Grid.Row="1" Margin="0,2,0,9"
                                    Text="按需读取更早日志，结束日期包含当天"
-                                   FontFamily="{StaticResource BodyFont}"
+                                   FontFamily="{StaticResource DashboardFont}"
                                    FontSize="11"
-                                   Foreground="{StaticResource InkClear}" />
+                                   Foreground="{StaticResource DashboardMuted}" />
                         <Grid Grid.Row="2">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -541,9 +632,9 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Text="开始" Margin="1,0,0,3"
-                                           FontFamily="{StaticResource BodyFont}"
+                                           FontFamily="{StaticResource DashboardFont}"
                                            FontSize="11"
-                                           Foreground="{StaticResource InkLight}" />
+                                           Foreground="{StaticResource DashboardMuted}" />
                                 <TextBox x:Name="CustomStartDateTextBox"
                                          Style="{StaticResource InkDateTextBoxStyle}"
                                          MaxLength="10" />
@@ -552,12 +643,12 @@
                                        Text="—"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
-                                       Foreground="{StaticResource InkClear}" />
+                                       Foreground="{StaticResource DashboardMuted}" />
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="结束" Margin="1,0,0,3"
-                                           FontFamily="{StaticResource BodyFont}"
+                                           FontFamily="{StaticResource DashboardFont}"
                                            FontSize="11"
-                                           Foreground="{StaticResource InkLight}" />
+                                           Foreground="{StaticResource DashboardMuted}" />
                                 <TextBox x:Name="CustomEndDateTextBox"
                                          Style="{StaticResource InkDateTextBoxStyle}"
                                          MaxLength="10" />
@@ -574,8 +665,8 @@
                             <Button x:Name="ApplyCustomRangeButton"
                                     Content="应用"
                                     Margin="7,0,0,0"
-                                    Foreground="{StaticResource SealRed}"
-                                    BorderBrush="#72C41E3A"
+                                    Foreground="{StaticResource DashboardGreen}"
+                                    BorderBrush="#805F7F4F"
                                     Style="{StaticResource InkActionButtonStyle}"
                                     Click="ApplyCustomRangeButton_Click" />
                         </StackPanel>
@@ -584,9 +675,9 @@
                                    Margin="1,8,0,0"
                                    Text="格式：2026-07-30"
                                    TextWrapping="Wrap"
-                                   FontFamily="{StaticResource BodyFont}"
+                                   FontFamily="{StaticResource DashboardFont}"
                                    FontSize="11"
-                                   Foreground="{StaticResource InkClear}" />
+                                   Foreground="{StaticResource DashboardMuted}" />
                     </Grid>
                 </Border>
             </Popup>
@@ -596,10 +687,10 @@
                    Placement="Bottom"
                    StaysOpen="False"
                    AllowsTransparency="True">
-                <Border Width="330" MaxHeight="350" Padding="16,13"
-                        Background="{StaticResource PaperWhite}"
-                        BorderBrush="#661A1A1A" BorderThickness="1"
-                        CornerRadius="12">
+                <Border Width="360" MaxHeight="380" Padding="18,16"
+                        Background="{StaticResource DashboardPanel}"
+                        BorderBrush="{StaticResource DashboardBorder}" BorderThickness="1"
+                        CornerRadius="8">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -607,15 +698,15 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <TextBlock x:Name="ModelRankingTitle"
-                                   FontFamily="{StaticResource CalligraphyFont}"
-                                   FontSize="18"
-                                   Foreground="{StaticResource InkDark}" />
+                                   FontFamily="{StaticResource DashboardFont}"
+                                   FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{StaticResource DashboardText}" />
                         <TextBlock Grid.Row="1" Margin="0,2,0,6"
-                                   Text="Token · 次数 · 消耗占比 · 输入/输出"
-                                   FontFamily="{StaticResource BodyFont}"
+                                   Text="Token · 请求 · 消耗占比 · 输入/输出占比"
+                                   FontFamily="{StaticResource DashboardFont}"
                                    FontSize="11"
-                                   Foreground="{StaticResource InkClear}" />
-                        <ScrollViewer Grid.Row="2" MaxHeight="285"
+                                   Foreground="{StaticResource DashboardMuted}" />
+                        <ScrollViewer Grid.Row="2" MaxHeight="310"
                                       Template="{StaticResource InkScrollViewerTemplate}"
                                       Padding="0,0,2,0"
                                       VerticalScrollBarVisibility="Auto"
@@ -626,31 +717,34 @@
                 </Border>
             </Popup>
         </Grid>
-        <Grid x:Name="MiniContent" Visibility="Collapsed" Margin="13,8"
-              Background="Transparent" Cursor="SizeAll"
+        <Grid x:Name="MiniContent" Visibility="Collapsed" Margin="12,9"
+              Background="{StaticResource DashboardBackground}" Cursor="SizeAll"
               ToolTip="双击展开完整面板"
               MouseLeftButtonDown="DragArea_MouseLeftButtonDown">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="30" />
+                <ColumnDefinition Width="28" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="1" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Image Width="25" Height="25" Source="Assets/tokenfloat-cat.png"
-                   Stretch="UniformToFill" VerticalAlignment="Center" />
+            <Border Width="26" Height="26" Background="#EEF4EA" CornerRadius="7"
+                    VerticalAlignment="Center">
+                <Image Width="21" Height="21" Source="Assets/tokenfloat-cat.png"
+                       Stretch="UniformToFill" VerticalAlignment="Center" />
+            </Border>
             <StackPanel Grid.Column="1" Margin="8,0,12,0" VerticalAlignment="Center">
-                <TextBlock Text="今日 Token" FontFamily="{StaticResource CalligraphyFont}"
-                           FontSize="11" Foreground="{StaticResource InkClear}" />
-                <TextBlock x:Name="MiniTokensText" Text="--" FontFamily="{StaticResource BodyFont}"
-                           FontSize="18" FontWeight="Bold" Foreground="{StaticResource InkDark}" />
+                <TextBlock Text="今日 Token" FontFamily="{StaticResource DashboardFont}"
+                           FontSize="10" Foreground="{StaticResource DashboardMuted}" />
+                <TextBlock x:Name="MiniTokensText" Text="--" FontFamily="{StaticResource DashboardMonoFont}"
+                           FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource DashboardText}" />
             </StackPanel>
-            <Rectangle Grid.Column="2" Width="1" Height="31" Fill="#281A1A1A"
+            <Rectangle Grid.Column="2" Width="1" Height="32" Fill="{StaticResource DashboardBorder}"
                        VerticalAlignment="Center" />
             <StackPanel Grid.Column="3" Margin="13,0,4,0" VerticalAlignment="Center">
-                <TextBlock Text="今日消耗" FontFamily="{StaticResource CalligraphyFont}"
-                           FontSize="11" Foreground="{StaticResource InkClear}" />
-                <TextBlock x:Name="MiniCostText" Text="--" FontFamily="{StaticResource BodyFont}"
-                           FontSize="16" Foreground="{StaticResource SealRed}" />
+                <TextBlock Text="今日消耗" FontFamily="{StaticResource DashboardFont}"
+                           FontSize="10" Foreground="{StaticResource DashboardMuted}" />
+                <TextBlock x:Name="MiniCostText" Text="--" FontFamily="{StaticResource DashboardMonoFont}"
+                           FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource DashboardGreen}" />
             </StackPanel>
             <Canvas x:Name="MiniIncreaseCanvas"
                     Grid.ColumnSpan="4"
