@@ -1,6 +1,6 @@
 {
-  "version": "2.0.3",
+  "version": "2.0.4",
   "installerUrl": "TokenFloat-Setup-x64.exe",
   "sha256": "REPLACE_WITH_INSTALLER_SHA256",
-  "releaseNotes": "为正常模式补充可见的圆角裁剪容器，并保留现有界面调整。"
+  "releaseNotes": "统一托盘菜单与设置页的仪表盘样式，新增自定义滚动条和主界面设置入口，并移除范围栏中的消耗摘要。"
 }

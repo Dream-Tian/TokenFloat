@@ -1,5 +1,5 @@
 ﻿#define MyAppName "TokenFloat"
-#define MyAppVersion "2.0.3"
+#define MyAppVersion "2.0.4"
 #define MyAppPublisher "TokenFloat"
 #define MyAppExeName "TokenFloat.exe"
 

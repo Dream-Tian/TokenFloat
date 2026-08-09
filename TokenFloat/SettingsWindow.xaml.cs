@@ -346,8 +346,8 @@ public partial class SettingsWindow : Window
         StatusText.Text = message;
         StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
             success
-                ? System.Windows.Media.Color.FromRgb(46, 139, 87)
-                : System.Windows.Media.Color.FromRgb(196, 30, 58));
+                ? System.Windows.Media.Color.FromRgb(95, 127, 79)
+                : System.Windows.Media.Color.FromRgb(231, 114, 152));
     }
 
     private static string FormatBytes(long bytes)

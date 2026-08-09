@@ -6,21 +6,20 @@ namespace TokenFloat.Services;
 
 public sealed class InkContextMenuRenderer : ToolStripProfessionalRenderer
 {
-    private static readonly Color PaperWhite = Color.FromArgb(248, 245, 240);
-    private static readonly Color IvoryWhite = Color.FromArgb(255, 255, 240);
-    private static readonly Color InkDark = Color.FromArgb(26, 26, 26);
-    private static readonly Color InkStrong = Color.FromArgb(51, 51, 51);
-    private static readonly Color InkClear = Color.FromArgb(153, 153, 153);
-    private static readonly Color SealRed = Color.FromArgb(196, 30, 58);
-    private static readonly Color LandscapeGreen = Color.FromArgb(46, 139, 87);
+    private static readonly Color Background = Color.FromArgb(255, 255, 255);
+    private static readonly Color Border = Color.FromArgb(221, 225, 218);
+    private static readonly Color Text = Color.FromArgb(32, 34, 31);
+    private static readonly Color Muted = Color.FromArgb(123, 129, 120);
+    private static readonly Color Green = Color.FromArgb(95, 127, 79);
+    private static readonly Color GreenSurface = Color.FromArgb(238, 244, 234);
 
-    public InkContextMenuRenderer() : base(new InkColorTable())
+    public InkContextMenuRenderer() : base(new DashboardColorTable())
     {
         RoundedEdges = false;
     }
 
     /// <summary>
-    /// 按菜单当前尺寸裁出圆角区域，使宣纸背景和自绘边框保持一致。
+    /// 为托盘菜单设置圆角区域，使系统菜单外观与主界面保持一致。
     /// </summary>
     public static void ApplyRoundedRegion(ContextMenuStrip menu)
     {
@@ -29,9 +28,7 @@ public sealed class InkContextMenuRenderer : ToolStripProfessionalRenderer
             return;
         }
 
-        using var path = CreateRoundedRectangle(
-            new Rectangle(0, 0, menu.Width, menu.Height),
-            8);
+        using var path = CreateRoundedRectangle(new Rectangle(0, 0, menu.Width, menu.Height), 9);
         var previous = menu.Region;
         menu.Region = new Region(path);
         previous?.Dispose();
@@ -39,17 +36,13 @@ public sealed class InkContextMenuRenderer : ToolStripProfessionalRenderer
 
     protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
     {
-        using var brush = new LinearGradientBrush(
-            e.AffectedBounds,
-            IvoryWhite,
-            PaperWhite,
-            LinearGradientMode.Vertical);
+        using var brush = new SolidBrush(Background);
         e.Graphics.FillRectangle(brush, e.AffectedBounds);
     }
 
     protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
     {
-        using var brush = new SolidBrush(PaperWhite);
+        using var brush = new SolidBrush(Background);
         e.Graphics.FillRectangle(brush, e.AffectedBounds);
     }
 
@@ -61,41 +54,34 @@ public sealed class InkContextMenuRenderer : ToolStripProfessionalRenderer
         }
 
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        var bounds = new Rectangle(5, 2, e.Item.Width - 10, e.Item.Height - 4);
+        var bounds = new Rectangle(6, 2, Math.Max(1, e.Item.Width - 12), Math.Max(1, e.Item.Height - 4));
         using var path = CreateRoundedRectangle(bounds, 6);
-        using var brush = new SolidBrush(Color.FromArgb(28, LandscapeGreen));
-        using var border = new Pen(Color.FromArgb(42, LandscapeGreen));
+        using var brush = new SolidBrush(GreenSurface);
+        using var borderPen = new Pen(Color.FromArgb(191, 208, 182));
         e.Graphics.FillPath(brush, path);
-        e.Graphics.DrawPath(border, path);
-
-        using var accent = new SolidBrush(Color.FromArgb(190, SealRed));
-        e.Graphics.FillEllipse(accent, bounds.Left + 5, bounds.Top + bounds.Height / 2 - 2, 4, 4);
+        e.Graphics.DrawPath(borderPen, path);
     }
 
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
-        e.TextColor = !e.Item.Enabled
-            ? InkClear
-            : e.Item.Selected
-                ? InkDark
-                : InkStrong;
+        e.TextColor = !e.Item.Enabled ? Muted : Text;
         base.OnRenderItemText(e);
     }
 
     protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
     {
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        var size = 16;
+        const int size = 16;
         var bounds = new Rectangle(
             e.ImageRectangle.Left + (e.ImageRectangle.Width - size) / 2,
             e.ImageRectangle.Top + (e.ImageRectangle.Height - size) / 2,
             size,
             size);
-        using var path = CreateRoundedRectangle(bounds, 4);
-        using var background = new SolidBrush(SealRed);
+        using var path = CreateRoundedRectangle(bounds, 5);
+        using var background = new SolidBrush(Green);
         e.Graphics.FillPath(background, path);
 
-        using var pen = new Pen(IvoryWhite, 1.8f)
+        using var pen = new Pen(Color.White, 1.8f)
         {
             StartCap = LineCap.Round,
             EndCap = LineCap.Round,
@@ -113,19 +99,15 @@ public sealed class InkContextMenuRenderer : ToolStripProfessionalRenderer
     protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
     {
         var y = e.Item.Height / 2;
-        using var pen = new Pen(Color.FromArgb(42, InkStrong));
-        e.Graphics.DrawLine(pen, 14, y, e.Item.Width - 14, y);
-        using var seal = new SolidBrush(Color.FromArgb(150, SealRed));
-        e.Graphics.FillEllipse(seal, 8, y - 1.5f, 3, 3);
+        using var pen = new Pen(Border);
+        e.Graphics.DrawLine(pen, 12, y, e.Item.Width - 12, y);
     }
 
     protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
     {
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var path = CreateRoundedRectangle(
-            new Rectangle(0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1),
-            8);
-        using var pen = new Pen(Color.FromArgb(74, InkStrong));
+        using var path = CreateRoundedRectangle(new Rectangle(0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1), 9);
+        using var pen = new Pen(Border);
         e.Graphics.DrawPath(pen, path);
     }
 
@@ -141,16 +123,16 @@ public sealed class InkContextMenuRenderer : ToolStripProfessionalRenderer
         return path;
     }
 
-    private sealed class InkColorTable : ProfessionalColorTable
+    private sealed class DashboardColorTable : ProfessionalColorTable
     {
-        public override Color ToolStripDropDownBackground => PaperWhite;
-        public override Color ImageMarginGradientBegin => PaperWhite;
-        public override Color ImageMarginGradientMiddle => PaperWhite;
-        public override Color ImageMarginGradientEnd => PaperWhite;
+        public override Color ToolStripDropDownBackground => Background;
+        public override Color ImageMarginGradientBegin => Background;
+        public override Color ImageMarginGradientMiddle => Background;
+        public override Color ImageMarginGradientEnd => Background;
         public override Color MenuBorder => Color.Transparent;
         public override Color MenuItemBorder => Color.Transparent;
         public override Color MenuItemSelected => Color.Transparent;
-        public override Color SeparatorDark => Color.FromArgb(42, InkStrong);
+        public override Color SeparatorDark => Border;
         public override Color SeparatorLight => Color.Transparent;
     }
 }

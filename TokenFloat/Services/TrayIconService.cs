@@ -150,12 +150,12 @@ public sealed class TrayIconService : IDisposable
     {
         Renderer = new InkContextMenuRenderer(),
         Font = new Font("楷体", 11f, FontStyle.Regular, GraphicsUnit.Point),
-        BackColor = Color.FromArgb(248, 245, 240),
-        ForeColor = Color.FromArgb(51, 51, 51),
+        BackColor = Color.FromArgb(255, 255, 255),
+        ForeColor = Color.FromArgb(32, 34, 31),
         ShowImageMargin = false,
         ShowCheckMargin = true,
-        DropShadowEnabled = false,
+        DropShadowEnabled = true,
         Padding = new Padding(5, 6, 5, 6),
-        MinimumSize = new Size(184, 0)
+        MinimumSize = new Size(190, 0)
     };
 }

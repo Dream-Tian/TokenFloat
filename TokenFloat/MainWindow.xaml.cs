@@ -50,6 +50,7 @@ public partial class MainWindow : Window
     private long? _lastTodayTokens;
 
     public event Action<string>? TraySummaryChanged;
+    public event Action? SettingsRequested;
 
     public MainWindow(UsageLogService usageLogService, AppSettingsService appSettingsService)
     {
@@ -208,6 +209,8 @@ public partial class MainWindow : Window
             RenderModelPage();
         }
     }
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke();
 
     private void UpdateNormalTabButtons()
     {

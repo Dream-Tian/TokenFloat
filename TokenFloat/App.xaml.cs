@@ -137,6 +137,7 @@ public partial class App : System.Windows.Application
             _updateService,
             _errorLogService);
         window.TraySummaryChanged += summary => _trayIcon?.UpdateSummary(summary);
+        window.SettingsRequested += ShowSettingsWindow;
         _singleInstance?.StartListening(() => Dispatcher.Invoke(ShowMainWindow));
         window.Show();
         _ = _trayIcon.CheckForUpdatesOnStartupAsync();
