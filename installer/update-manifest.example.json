@@ -1,6 +1,6 @@
 {
-  "version": "1.9.0",
+  "version": "2.0.0",
   "installerUrl": "TokenFloat-Setup-x64.exe",
   "sha256": "REPLACE_WITH_INSTALLER_SHA256",
-  "releaseNotes": "新增自定义日期范围和模型用量排行榜。"
+  "releaseNotes": "用量数据源改为 NewAPI 个人消费汇总。"
 }
