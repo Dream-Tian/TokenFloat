@@ -10,31 +10,37 @@ public partial class SettingsWindow : Window
 {
     private readonly UpdateService _updateService;
     private readonly AppSettingsService _appSettingsService;
+    private readonly UsageLogService _usageLogService;
     private readonly LocalDataService _localDataService;
     private readonly Func<UpdateInfo, Task<string?>> _downloadInstaller;
     private readonly Func<Task<bool>> _clearUsageCache;
     private readonly Action _exitApplication;
     private readonly ErrorLogService _errorLogService;
+    private readonly Func<TimeSpan?> _getLastRefreshDuration;
     private UpdateInfo? _availableUpdate;
     private bool _isLoading = true;
 
     public SettingsWindow(
         UpdateService updateService,
         AppSettingsService appSettingsService,
+        UsageLogService usageLogService,
         LocalDataService localDataService,
         Func<UpdateInfo, Task<string?>> downloadInstaller,
         Func<Task<bool>> clearUsageCache,
         Action exitApplication,
-        ErrorLogService errorLogService)
+        ErrorLogService errorLogService,
+        Func<TimeSpan?>? getLastRefreshDuration = null)
     {
         InitializeComponent();
         _updateService = updateService;
         _appSettingsService = appSettingsService;
+        _usageLogService = usageLogService;
         _localDataService = localDataService;
         _downloadInstaller = downloadInstaller;
         _clearUsageCache = clearUsageCache;
         _exitApplication = exitApplication;
         _errorLogService = errorLogService;
+        _getLastRefreshDuration = getLastRefreshDuration ?? (() => null);
 
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "未知";
         VersionText.Text = $"TokenFloat · {version}";
@@ -54,6 +60,7 @@ public partial class SettingsWindow : Window
                 int.TryParse(item.Tag?.ToString(), out var seconds) &&
                 seconds == appSettings.RefreshIntervalSeconds);
         RefreshDataUsage();
+        SetLastRefreshDuration(_getLastRefreshDuration());
         _isLoading = false;
     }
 
@@ -78,42 +85,22 @@ public partial class SettingsWindow : Window
 
     private async void SaveNewApiButton_Click(object sender, RoutedEventArgs e)
     {
-        var baseUrl = NewApiBaseUrlTextBox.Text.Trim();
-        var accessToken = NewApiTokenPasswordBox.Password.Trim();
-        var userIdText = NewApiUserIdTextBox.Text.Trim();
+        if (!TryReadNewApiSettings(out var settings))
+        {
+            return;
+        }
 
-        if (string.IsNullOrWhiteSpace(baseUrl) && string.IsNullOrWhiteSpace(accessToken) && string.IsNullOrWhiteSpace(userIdText))
+        if (!settings.IsNewApiConfigured)
         {
             _appSettingsService.SetNewApi(string.Empty, string.Empty, 0);
             ShowStatus("NewAPI 设置已清空", true);
             return;
         }
 
-        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) ||
-            uri.Scheme is not ("http" or "https"))
-        {
-            ShowStatus("NewAPI 服务地址需要以 http:// 或 https:// 开头", false);
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(accessToken))
-        {
-            ShowStatus("NewAPI 系统 Token 不能为空", false);
-            return;
-        }
-
-        var userId = 0;
-        if (!string.IsNullOrWhiteSpace(userIdText) &&
-            (!int.TryParse(userIdText, out userId) || userId < 0))
-        {
-            ShowStatus("用户 ID 需要是正整数；不需要时可留空", false);
-            return;
-        }
-
         _appSettingsService.SetNewApi(
-            uri.ToString().TrimEnd('/'),
-            accessToken,
-            userId);
+            settings.NewApiBaseUrl,
+            settings.NewApiAccessToken,
+            settings.NewApiUserId);
         if (sender is System.Windows.Controls.Button button)
         {
             button.IsEnabled = false;
@@ -144,6 +131,84 @@ public partial class SettingsWindow : Window
                 restoreButton.IsEnabled = true;
             }
         }
+    }
+
+    /// <summary>
+    /// 使用当前输入框内容请求 NewAPI 状态接口，不改变已保存配置。
+    /// </summary>
+    private async void TestNewApiButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryReadNewApiSettings(out var settings))
+        {
+            return;
+        }
+
+        TestNewApiButton.IsEnabled = false;
+        ShowStatus("正在测试 NewAPI 连接…");
+        try
+        {
+            var result = await _usageLogService.TestConnectionAsync(settings);
+            var duration = FormatDuration(result.Duration);
+            ShowStatus(
+                result.IsSuccess
+                    ? $"NewAPI 连接成功 · {duration}"
+                    : $"NewAPI 连接失败 · {result.Message} · {duration}",
+                result.IsSuccess);
+        }
+        catch (Exception exception)
+        {
+            _errorLogService.Write("设置页测试 NewAPI 连接", exception);
+            ShowStatus($"测试 NewAPI 连接失败：{exception.Message}", false);
+        }
+        finally
+        {
+            TestNewApiButton.IsEnabled = true;
+        }
+    }
+
+    private bool TryReadNewApiSettings(out AppSettings settings)
+    {
+        var baseUrl = NewApiBaseUrlTextBox.Text.Trim();
+        var accessToken = NewApiTokenPasswordBox.Password.Trim();
+        var userIdText = NewApiUserIdTextBox.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(baseUrl) &&
+            string.IsNullOrWhiteSpace(accessToken) &&
+            string.IsNullOrWhiteSpace(userIdText))
+        {
+            settings = new AppSettings();
+            return true;
+        }
+
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) ||
+            uri.Scheme is not ("http" or "https"))
+        {
+            ShowStatus("NewAPI 服务地址需要以 http:// 或 https:// 开头", false);
+            settings = new AppSettings();
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(accessToken))
+        {
+            ShowStatus("NewAPI 系统 Token 不能为空", false);
+            settings = new AppSettings();
+            return false;
+        }
+
+        var userId = 0;
+        if (!string.IsNullOrWhiteSpace(userIdText) &&
+            (!int.TryParse(userIdText, out userId) || userId < 0))
+        {
+            ShowStatus("用户 ID 需要是正整数；不需要时可留空", false);
+            settings = new AppSettings();
+            return false;
+        }
+
+        settings = new AppSettings(
+            NewApiBaseUrl: uri.ToString().TrimEnd('/'),
+            NewApiAccessToken: accessToken,
+            NewApiUserId: userId);
+        return true;
     }
 
     private void SaveRefreshSettings()
@@ -223,6 +288,11 @@ public partial class SettingsWindow : Window
         var usage = _localDataService.GetUsage();
         UsageCacheSizeText.Text = FormatBytes(usage.UsageCacheBytes);
         ErrorLogSizeText.Text = FormatBytes(usage.ErrorLogBytes);
+    }
+
+    public void SetLastRefreshDuration(TimeSpan? duration)
+    {
+        RefreshDurationText.Text = duration is null ? "尚未刷新" : FormatDuration(duration.Value);
     }
 
     /// <summary>
@@ -363,6 +433,11 @@ public partial class SettingsWindow : Window
 
         return unitIndex == 0 ? $"{value:0} {units[unitIndex]}" : $"{value:0.##} {units[unitIndex]}";
     }
+
+    private static string FormatDuration(TimeSpan duration) =>
+        duration.TotalSeconds >= 1
+            ? $"{duration.TotalSeconds:0.##} 秒"
+            : $"{Math.Max(0, duration.TotalMilliseconds):0} ms";
 
     private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {

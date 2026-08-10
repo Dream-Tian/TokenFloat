@@ -9,21 +9,23 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $projectPath = Join-Path $repositoryRoot 'TokenFloat\TokenFloat.csproj'
 $installerPath = Join-Path $repositoryRoot 'installer\TokenFloat.iss'
 $manifestPath = Join-Path $repositoryRoot 'installer\update-manifest.example.json'
+$utf8Bom = [System.Text.UTF8Encoding]::new($true)
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
-$project = Get-Content -LiteralPath $projectPath -Raw
+$project = [System.IO.File]::ReadAllText($projectPath, $utf8NoBom)
 $project = [regex]::Replace($project, '<Version>[^<]+</Version>', "<Version>$Version</Version>", 1)
-Set-Content -LiteralPath $projectPath -Value $project -Encoding utf8
+[System.IO.File]::WriteAllText($projectPath, $project, $utf8Bom)
 
-$installer = Get-Content -LiteralPath $installerPath -Raw
+$installer = [System.IO.File]::ReadAllText($installerPath, $utf8NoBom)
 $installer = [regex]::Replace(
     $installer,
     '#define MyAppVersion "[^"]+"',
     "#define MyAppVersion `"$Version`"",
     1)
-Set-Content -LiteralPath $installerPath -Value $installer -Encoding utf8
+[System.IO.File]::WriteAllText($installerPath, $installer, $utf8Bom)
 
-$manifest = Get-Content -LiteralPath $manifestPath -Raw
+$manifest = [System.IO.File]::ReadAllText($manifestPath, $utf8NoBom)
 $manifest = [regex]::Replace($manifest, '"version"\s*:\s*"[^"]+"', '"version": "' + $Version + '"', 1)
-Set-Content -LiteralPath $manifestPath -Value $manifest -Encoding utf8
+[System.IO.File]::WriteAllText($manifestPath, $manifest, $utf8NoBom)
 
 Write-Host "TokenFloat version updated to $Version"

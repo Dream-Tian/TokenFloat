@@ -138,6 +138,7 @@ public partial class App : System.Windows.Application
             _errorLogService);
         window.TraySummaryChanged += summary => _trayIcon?.UpdateSummary(summary);
         window.SettingsRequested += ShowSettingsWindow;
+        window.RefreshCompleted += duration => _settingsWindow?.SetLastRefreshDuration(duration);
         _singleInstance?.StartListening(() => Dispatcher.Invoke(ShowMainWindow));
         window.Show();
         _ = _trayIcon.CheckForUpdatesOnStartupAsync();
@@ -197,11 +198,13 @@ public partial class App : System.Windows.Application
         _settingsWindow = new SettingsWindow(
             _updateService,
             _appSettingsService,
+            _usageLogService,
             _localDataService,
             update => DownloadUpdateAsync(update, _updateService),
             () => (MainWindow as TokenFloat.MainWindow)?.ClearUsageCacheAsync() ?? Task.FromResult(false),
             ExitApplication,
-            _errorLogService);
+            _errorLogService,
+            () => (MainWindow as TokenFloat.MainWindow)?.LastRefreshDuration);
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();
     }

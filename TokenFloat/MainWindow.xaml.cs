@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -51,6 +52,9 @@ public partial class MainWindow : Window
 
     public event Action<string>? TraySummaryChanged;
     public event Action? SettingsRequested;
+    public event Action<TimeSpan>? RefreshCompleted;
+
+    public TimeSpan? LastRefreshDuration { get; private set; }
 
     public MainWindow(UsageLogService usageLogService, AppSettingsService appSettingsService)
     {
@@ -116,6 +120,7 @@ public partial class MainWindow : Window
         }
 
         _isRefreshing = true;
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             _snapshot = _customRange is null
@@ -130,7 +135,10 @@ public partial class MainWindow : Window
         }
         finally
         {
+            stopwatch.Stop();
             _isRefreshing = false;
+            LastRefreshDuration = stopwatch.Elapsed;
+            RefreshCompleted?.Invoke(stopwatch.Elapsed);
         }
     }
 
@@ -145,6 +153,7 @@ public partial class MainWindow : Window
         }
 
         _isRefreshing = true;
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             _usageLogService.ClearCache();
@@ -156,7 +165,10 @@ public partial class MainWindow : Window
         }
         finally
         {
+            stopwatch.Stop();
             _isRefreshing = false;
+            LastRefreshDuration = stopwatch.Elapsed;
+            RefreshCompleted?.Invoke(stopwatch.Elapsed);
         }
     }
 

@@ -139,7 +139,16 @@
                             <Border x:Name="OuterBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
                                 <Grid>
                                     <ContentPresenter Margin="10,0,30,0" VerticalAlignment="Center" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" />
-                                    <TextBlock Margin="0,0,10,1" HorizontalAlignment="Right" VerticalAlignment="Center" Text="⌄" FontFamily="{StaticResource DashboardFont}" FontSize="14" Foreground="{StaticResource DashboardMuted}" />
+                                    <Path Width="10" Height="7" Margin="0,0,11,0"
+                                          HorizontalAlignment="Right" VerticalAlignment="Center"
+                                          Data="M 1,6 L 5,2 L 9,6"
+                                          Stroke="{StaticResource DashboardMuted}" StrokeThickness="1.4"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                          RenderTransformOrigin="0.5,0.5">
+                                        <Path.RenderTransform>
+                                            <RotateTransform x:Name="DropDownArrowRotation" Angle="0" />
+                                        </Path.RenderTransform>
+                                    </Path>
                                 </Grid>
                             </Border>
                             <ToggleButton Background="Transparent" BorderThickness="0" Focusable="False" FocusVisualStyle="{x:Null}" ClickMode="Press" IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
@@ -155,6 +164,26 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="OuterBorder" Property="BorderBrush" Value="#BFD0B6" /></Trigger>
+                            <Trigger Property="IsDropDownOpen" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="DropDownArrowRotation"
+                                                             Storyboard.TargetProperty="Angle"
+                                                             To="180" Duration="0:0:0.18" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="DropDownArrowRotation"
+                                                             Storyboard.TargetProperty="Angle"
+                                                             To="0" Duration="0:0:0.18" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -348,21 +377,28 @@
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="74" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <StackPanel Margin="0,0,8,0"><TextBlock Text="系统 Token" Margin="0,0,0,4" FontFamily="{StaticResource DashboardFont}" FontSize="11" Foreground="{StaticResource DashboardMuted}" /><Border Style="{StaticResource FieldBorderStyle}"><PasswordBox x:Name="NewApiTokenPasswordBox" Margin="9,0" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Foreground="{StaticResource DashboardText}" FontFamily="{StaticResource DashboardMonoFont}" FontSize="11" /></Border></StackPanel>
                                 <StackPanel Grid.Column="1" Margin="0,0,8,0"><TextBlock Text="用户 ID" Margin="0,0,0,4" FontFamily="{StaticResource DashboardFont}" FontSize="11" Foreground="{StaticResource DashboardMuted}" /><Border Style="{StaticResource FieldBorderStyle}"><TextBox x:Name="NewApiUserIdTextBox" Margin="9,0" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Foreground="{StaticResource DashboardText}" FontFamily="{StaticResource DashboardMonoFont}" FontSize="11" /></Border></StackPanel>
-                                <Button Grid.Column="2" Margin="0,20,0,0" Content="保存" Click="SaveNewApiButton_Click" Style="{StaticResource DashboardButtonStyle}" />
+                                <StackPanel Grid.Column="2" Margin="0,20,0,0" Orientation="Horizontal">
+                                    <Button x:Name="TestNewApiButton" Margin="0,0,7,0" Content="测试连接" Click="TestNewApiButton_Click" Style="{StaticResource DashboardButtonStyle}" />
+                                    <Button Content="保存" Click="SaveNewApiButton_Click" Style="{StaticResource DashboardButtonStyle}" />
+                                </StackPanel>
                             </Grid>
                         </Grid>
                     </Border>
 
                     <Border Margin="0,10,0,0" Style="{StaticResource SectionStyle}">
                         <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                             <Grid><TextBlock Text="本地数据" FontFamily="{StaticResource DashboardFont}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource DashboardText}" /><Button HorizontalAlignment="Right" Content="打开目录" Click="OpenDataFolderButton_Click" Style="{StaticResource DashboardButtonStyle}" /></Grid>
                             <Grid Grid.Row="1" Margin="0,10,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <TextBlock Text="统计缓存" FontFamily="{StaticResource DashboardFont}" FontSize="13" Foreground="{StaticResource DashboardMuted}" /><TextBlock x:Name="UsageCacheSizeText" Grid.Column="1" FontFamily="{StaticResource DashboardMonoFont}" FontSize="12" Foreground="{StaticResource DashboardGreen}" />
                                 <TextBlock Grid.Column="3" Text="错误日志" FontFamily="{StaticResource DashboardFont}" FontSize="13" Foreground="{StaticResource DashboardMuted}" /><TextBlock x:Name="ErrorLogSizeText" Grid.Column="4" FontFamily="{StaticResource DashboardMonoFont}" FontSize="12" Foreground="{StaticResource DashboardPink}" />
                             </Grid>
-                            <StackPanel Grid.Row="2" Margin="0,10,0,0" HorizontalAlignment="Right" Orientation="Horizontal"><Button x:Name="ClearUsageCacheButton" Margin="0,0,7,0" Content="清除统计缓存" Click="ClearUsageCacheButton_Click" Style="{StaticResource DashboardButtonStyle}" /><Button x:Name="ClearErrorLogsButton" Content="清除错误日志" Click="ClearErrorLogsButton_Click" Style="{StaticResource DashboardButtonStyle}" /></StackPanel>
+                            <Grid Grid.Row="2" Margin="0,10,0,0">
+                                <TextBlock Text="本次刷新耗时" FontFamily="{StaticResource DashboardFont}" FontSize="13" Foreground="{StaticResource DashboardMuted}" />
+                                <TextBlock x:Name="RefreshDurationText" HorizontalAlignment="Right" Text="尚未刷新" FontFamily="{StaticResource DashboardMonoFont}" FontSize="12" Foreground="{StaticResource DashboardGreen}" />
+                            </Grid>
+                            <StackPanel Grid.Row="3" Margin="0,10,0,0" HorizontalAlignment="Right" Orientation="Horizontal"><Button x:Name="ClearUsageCacheButton" Margin="0,0,7,0" Content="清除统计缓存" Click="ClearUsageCacheButton_Click" Style="{StaticResource DashboardButtonStyle}" /><Button x:Name="ClearErrorLogsButton" Content="清除错误日志" Click="ClearErrorLogsButton_Click" Style="{StaticResource DashboardButtonStyle}" /></StackPanel>
                         </Grid>
                     </Border>
                 </StackPanel>

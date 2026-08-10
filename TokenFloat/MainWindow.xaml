@@ -304,7 +304,7 @@
                     <RowDefinition Height="0" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" MouseLeftButtonDown="DragArea_MouseLeftButtonDown">
+                <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="DragArea_MouseLeftButtonDown">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -516,21 +516,26 @@
                             <RowDefinition Height="1" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <Grid Margin="16,0">
+                        <Grid Margin="16,0" VerticalAlignment="Center">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <Border Width="30" Height="30" Background="#EEF4EA" CornerRadius="7" VerticalAlignment="Center">
+                            <Border Grid.RowSpan="2" Width="30" Height="30" Background="#EEF4EA" CornerRadius="7" VerticalAlignment="Center">
                                 <TextBlock Text="▥" FontSize="14" Foreground="{StaticResource DashboardGreen}"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
-                            <StackPanel Grid.Column="1" Margin="9,0,4,0" MaxWidth="205"
-                                        Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="消费趋势" FontSize="14" FontWeight="SemiBold"
-                                           Foreground="{StaticResource DashboardText}" />
-                                <TextBlock x:Name="TrendTitleText" Text="今日 · 每时" Margin="10,1,0,0" FontSize="11"
+                            <TextBlock Grid.Column="1" Margin="9,0,4,0" Text="消费趋势"
+                                       VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{StaticResource DashboardText}" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="9,3,0,0"
+                                        Orientation="Horizontal">
+                                <TextBlock x:Name="TrendTitleText" Text="今日 · 每时" Margin="0,1,0,0" FontSize="11"
                                            Foreground="{StaticResource DashboardMuted}" TextTrimming="CharacterEllipsis" />
                                 <TextBlock x:Name="TrendTotalText" Text="总计 --" Margin="12,1,0,0" FontSize="11"
                                            Foreground="{StaticResource DashboardSubtle}" TextTrimming="CharacterEllipsis" />
