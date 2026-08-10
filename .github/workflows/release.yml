@@ -46,6 +46,13 @@ jobs:
 
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Extract release notes
+        shell: pwsh
+        run: >-
+          .\scripts\get-release-notes.ps1
+          -Version $env:VERSION
+          -OutputPath artifacts\installer\release-notes.md
+
       - name: Publish application
         run: >-
           dotnet publish TokenFloat\TokenFloat.csproj
@@ -73,12 +80,32 @@ jobs:
         shell: pwsh
         run: |
           $installer = 'artifacts\installer\TokenFloat-Setup-x64.exe'
+          $releaseNotesPath = 'artifacts\installer\release-notes.md'
           $sha256 = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash
+          $releaseNotesMarkdown = [System.IO.File]::ReadAllText($releaseNotesPath).Trim()
+          $releaseNoteItems = @(
+            $releaseNotesMarkdown -split '\r?\n' |
+              ForEach-Object { $_.Trim() } |
+              Where-Object { $_ -match '^[-*+]\s+' } |
+              ForEach-Object {
+                ($_ -replace '^[-*+]\s+', '') -replace '[。；;]\s*$', ''
+              }
+          )
+          $releaseNotes = if ($releaseNoteItems.Count -gt 0) {
+            ($releaseNoteItems -join '；') + '。'
+          } else {
+            ($releaseNotesMarkdown -split '\r?\n' |
+              ForEach-Object { $_.Trim() } |
+              Where-Object { $_ -and $_ -notmatch '^#{1,6}\s+' }) -join ' '
+          }
+          if ([string]::IsNullOrWhiteSpace($releaseNotes)) {
+            throw 'Release notes are empty after parsing CHANGELOG.md.'
+          }
           $manifest = [ordered]@{
             version = $env:VERSION
             installerUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$env:VERSION/TokenFloat-Setup-x64.exe"
             sha256 = $sha256
-            releaseNotes = "See the GitHub Release page for details."
+            releaseNotes = $releaseNotes
           }
           $manifest | ConvertTo-Json | Set-Content -LiteralPath artifacts\installer\update-manifest.json -Encoding utf8
           "$sha256  TokenFloat-Setup-x64.exe" | Set-Content -LiteralPath artifacts\installer\SHA256SUMS.txt -Encoding ascii
@@ -93,4 +120,4 @@ jobs:
             artifacts\installer\update-manifest.json `
             artifacts\installer\SHA256SUMS.txt `
             --title "TokenFloat $env:VERSION" `
-            --generate-notes
+            --notes-file artifacts\installer\release-notes.md

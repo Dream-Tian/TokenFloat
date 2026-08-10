@@ -83,7 +83,7 @@ TokenFloat 使用以下接口：
 
 | 文件或目录 | 用途 |
 | --- | --- |
-| `app-settings.json` | NewAPI 地址、系统 Token、刷新设置和更新源。Token 仅保存在本机，请确保 Windows 用户账户安全。 |
+| `app-settings.json` | NewAPI 地址、刷新设置和更新源。系统 Token 使用 Windows DPAPI 按当前用户范围加密，旧版明文配置会在首次读取时自动迁移。 |
 | `usage-index-v7.json.gz` | 压缩统计缓存，包含事件索引、汇总和最近成功抓取时间，不保存提示词或响应正文。 |
 | `logs` | 程序错误日志，记录上下文、异常类型、消息和堆栈。 |
 
@@ -142,7 +142,9 @@ Start-Process artifacts\installer\TokenFloat-Setup-x64.exe `
 
 ## 发布流程
 
-版本号同时维护在项目文件、Inno Setup 脚本和示例更新清单中。发布新版本时先同步版本：
+版本号同时维护在项目文件、Inno Setup 脚本和示例更新清单中。发布前还需要把 `CHANGELOG.md` 的“未发布”内容改为带日期的版本章节，例如 `## [2.0.6] - 2026-08-10`；标签对应的版本章节缺失或为空时，发布工作流会直接失败。
+
+确认更新日志后，同步版本并执行验证：
 
 ```powershell
 .\scripts\set-version.ps1 -Version 2.0.6
@@ -156,11 +158,12 @@ git tag -a v2.0.6 -m "TokenFloat 2.0.6"
 git push origin v2.0.6
 ```
 
-推送 `v*` 标签后，GitHub Actions 会自动执行测试、构建自包含安装包、生成 SHA-256 清单并创建 GitHub Release。相关工作流位于：
+推送 `v*` 标签后，GitHub Actions 会自动执行测试、从 `CHANGELOG.md` 提取对应版本说明、构建自包含安装包、生成 SHA-256 清单并创建 GitHub Release。更新清单使用适合客户端显示的单行变更摘要，GitHub Release 保留完整 Markdown 结构。相关工作流位于：
 
 - `.github/workflows/build.yml`：推送和 Pull Request 的构建与测试。
 - `.github/workflows/release.yml`：标签发布、安装包和更新清单。
 - `scripts/set-version.ps1`：同步项目版本、安装器版本和示例清单。
+- `scripts/get-release-notes.ps1`：提取指定版本的发布说明，并校验版本章节存在且非空。
 
 ## 常见问题
 

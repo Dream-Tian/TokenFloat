@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TokenFloat.Services;
 
 namespace TokenFloat.Tests;
@@ -46,6 +47,8 @@ public sealed class SettingsAndDataServiceTests : IDisposable
 
         service.SetNewApi(" https://newapi.example.com/ ", " test-token ", 123);
         var reloaded = new AppSettingsService(_folder);
+        var storedJson = File.ReadAllText(Path.Combine(_folder, "app-settings.json"));
+        using var stored = JsonDocument.Parse(storedJson);
 
         Assert.NotNull(notified);
         Assert.Equal("https://newapi.example.com/", notified.NewApiBaseUrl);
@@ -55,6 +58,43 @@ public sealed class SettingsAndDataServiceTests : IDisposable
         Assert.Equal("https://newapi.example.com/", reloaded.Settings.NewApiBaseUrl);
         Assert.Equal("test-token", reloaded.Settings.NewApiAccessToken);
         Assert.Equal(123, reloaded.Settings.NewApiUserId);
+        Assert.DoesNotContain("test-token", storedJson, StringComparison.Ordinal);
+        Assert.False(stored.RootElement.TryGetProperty("NewApiAccessToken", out _));
+        Assert.StartsWith(
+            "dpapi:v1:",
+            stored.RootElement.GetProperty("NewApiAccessTokenProtected").GetString(),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LegacyPlaintextToken_IsMigratedToDpapi()
+    {
+        var settingsPath = Path.Combine(_folder, "app-settings.json");
+        File.WriteAllText(
+            settingsPath,
+            """
+            {
+              "RefreshIntervalSeconds": 60,
+              "RefreshOnlyWhenVisible": true,
+              "NewApiBaseUrl": "https://newapi.example.com/",
+              "NewApiAccessToken": "legacy-token",
+              "NewApiUserId": 42
+            }
+            """);
+
+        var service = new AppSettingsService(_folder);
+        var migratedJson = File.ReadAllText(settingsPath);
+        using var migrated = JsonDocument.Parse(migratedJson);
+
+        Assert.Equal("legacy-token", service.Settings.NewApiAccessToken);
+        Assert.Equal(60, service.Settings.RefreshIntervalSeconds);
+        Assert.True(service.Settings.RefreshOnlyWhenVisible);
+        Assert.DoesNotContain("legacy-token", migratedJson, StringComparison.Ordinal);
+        Assert.False(migrated.RootElement.TryGetProperty("NewApiAccessToken", out _));
+        Assert.StartsWith(
+            "dpapi:v1:",
+            migrated.RootElement.GetProperty("NewApiAccessTokenProtected").GetString(),
+            StringComparison.Ordinal);
     }
 
     [Fact]

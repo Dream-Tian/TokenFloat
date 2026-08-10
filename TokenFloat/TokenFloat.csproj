@@ -7,13 +7,17 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>2.0.5</Version>
+    <Version>2.0.6</Version>
     <ApplicationIcon>Assets\tokenfloat-cat.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <Resource Include="Assets\tokenfloat-cat.ico" />
     <Resource Include="Assets\tokenfloat-cat.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,6 @@
 {
-  "version": "2.0.5",
+  "version": "2.0.6",
   "installerUrl": "TokenFloat-Setup-x64.exe",
   "sha256": "REPLACE_WITH_INSTALLER_SHA256",
-  "releaseNotes": "优化 NewAPI 增量刷新，新增连接测试和刷新耗时显示，并改进趋势栏、下拉箭头及窗口拖动体验。"
+  "releaseNotes": "使用 Windows DPAPI 加密保存 NewAPI Token，并从 CHANGELOG.md 生成更新清单说明和 GitHub Release Notes。"
 }
