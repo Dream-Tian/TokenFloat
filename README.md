@@ -1,71 +1,110 @@
 # TokenFloat
 
 [![Build](https://github.com/Dream-Tian/TokenFloat/actions/workflows/build.yml/badge.svg)](https://github.com/Dream-Tian/TokenFloat/actions/workflows/build.yml)
-[![Release](https://img.shields.io/github/v/release/Dream-Tian/TokenFloat?display_name=tag)](https://github.com/Dream-Tian/TokenFloat/releases)
+[![Latest release](https://img.shields.io/github/v/release/Dream-Tian/TokenFloat?display_name=tag)](https://github.com/Dream-Tian/TokenFloat/releases/latest)
 
-TokenFloat 是一个 Windows 桌面悬浮用量面板，从 NewAPI 读取个人消费日志，汇总显示 Token、请求次数、速率和总消耗。
+TokenFloat 是一个 Windows 桌面悬浮用量面板。它从 NewAPI 读取个人消费汇总，在一个轻量的圆角仪表盘中展示 Token、请求次数、速率、模型排行和估算消耗。
 
-程序不再扫描本机 Codex、Claude Code、Gemini CLI 日志，也不按这些工具拆分展示消耗。
+## 界面预览
+
+主界面提供总览、趋势和模型三个标签页；设置页集中管理 NewAPI、刷新策略和本地数据。
+
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="TokenFloat 主界面" width="600" />
+</p>
+
+<p align="center">
+  <img src="docs/images/settings.png" alt="TokenFloat 设置页" width="430" />
+</p>
 
 ## 功能
 
-- 今日、本周（周一至今）、本月用量统计
-- 输入、输出、请求次数、平均 RPM/TPM
-- NewAPI 总消耗展示，按日志 quota 和 `quota_per_unit` 换算
-- Token / 消耗趋势切换，悬浮显示时段 Token、请求数和金额
-- 今日、本周、本月与上一周期相同进度的用量比较
-- 任意起止日期统计，并提供近 7 天和近 30 天快捷范围
-- 模型排行榜，展示 Token、次数、消耗占比和输入/输出比例
-- 双击标题切换迷你模式，普通与迷你窗口分别记住位置
-- 迷你模式实时显示 Token 新增量的上浮渐隐动画
-- 系统托盘和开机自启
-- 10 秒至 5 分钟可配置刷新，可选择仅窗口可见时刷新
-- 常规刷新只请求最近增量数据，并与本地压缩缓存合并；缓存缺失、过旧或自定义历史范围时自动完整读取
-- NewAPI 设置页，集中管理服务地址、系统 Token、刷新和本地缓存/错误日志
-- 设置页支持“测试连接”，并显示最近一次统计刷新的耗时
-- 基于 HTTPS 清单和 SHA-256 校验的自动更新
-- 单实例运行，重复启动时直接唤醒已有窗口
-- 更新下载进度、实时速度和取消操作
-- 本地错误日志与 14 天自动清理
-- 浅色圆角仪表盘界面，普通模式与迷你模式适配不同使用场景
+### 用量分析
 
-## 系统要求
+- 今日、本周、本月统计，周统计从周一开始计算。
+- 任意起止日期统计，并提供近 7 天、近 30 天快捷范围。
+- 输入 Token、输出 Token、请求次数、平均 RPM/TPM。
+- Token 和消耗趋势切换，悬停图表可查看具体时段数据。
+- 今日、本周、本月与上一周期相同进度的用量比较。
+- 模型排行榜，展示 Token、请求次数、消耗占比和输入/输出比例。
+- NewAPI `quota` 与 `/api/status` 的 `quota_per_unit` 换算估算消耗。
 
-- Windows 10/11 x64
-- 源码构建需要 .NET 8 SDK
-- Release 安装包为自包含版本，使用时无需另装 .NET Runtime
+### 刷新与缓存
+
+- 刷新间隔可设置为 10 秒、30 秒、1 分钟或 5 分钟。
+- 可选择仅窗口可见时刷新。
+- 首次刷新、缓存缺失或缓存超过 7 天未刷新时读取完整历史。
+- 常规刷新以最近一次成功刷新时间为基准，只读取附近的增量数据，并保留 2 小时重叠区间，避免当前小时汇总更新造成遗漏。
+- 设置页显示本次刷新耗时，可手动清除统计缓存并重建。
+
+### 桌面体验
+
+- 普通模式和迷你模式分别保存窗口位置。
+- 双击标题栏切换迷你模式；标题栏整行空白区域也可以拖动窗口。
+- 迷你模式显示今日 Token 和今日消耗，并对 Token 新增量播放上浮渐隐动画。
+- 系统托盘、单实例运行和可选开机自启。
+- 圆角浅色仪表盘界面，设置页使用自定义滚动条。
+
+### 更新与诊断
+
+- 设置页可以测试 NewAPI 连接，显示 HTTP 结果和请求耗时；测试不会保存当前输入内容。
+- 支持 HTTPS 更新清单和 SHA-256 安装包校验。
+- 下载更新时显示进度、速度，并支持取消。
+- 本地错误日志自动清理 14 天前的记录。
+
+## 安装
+
+从 [Releases](https://github.com/Dream-Tian/TokenFloat/releases/latest) 下载 `TokenFloat-Setup-x64.exe`，运行安装器并选择安装目录即可。Release 安装包是自包含版本，不需要另外安装 .NET Runtime。
+
+首次启动后，点击主界面右上角的设置图标，在 NewAPI 区域填写服务地址和系统 Token。建议先点击“测试连接”，确认成功后再保存。
 
 ## NewAPI 配置
 
-在“设置...”页面填写：
+设置页的 NewAPI 区域包含以下字段：
 
-- NewAPI 服务地址，例如 `https://new-api.example.com/`
-- 系统 Token，用于访问 `/api/data/self` 和 `/api/status`
-- 可选用户 ID，需要兼容部分 NewAPI 部署的 `New-Api-User` 请求头时再填写
+| 字段 | 说明 |
+| --- | --- |
+| 服务地址 | NewAPI 根地址，例如 `https://new-api.example.com/`。程序会请求 `/api/status` 和 `/api/data/self`。 |
+| 系统 Token | 用于访问个人消费数据的 Bearer Token。 |
+| 用户 ID | 可选；只有服务端要求 `New-Api-User` 请求头时才填写。 |
 
-读取范围默认覆盖本月和上月。常规定时刷新会复用缓存，只从上次成功刷新时间附近拉取增量；缓存不存在、超过 7 天未刷新或自定义日期范围需要更早数据时，会按需执行完整读取。设置页的“测试连接”只请求 `/api/status`，不会保存输入内容。
+“测试连接”只请求 `/api/status`，不会写入设置文件。点击“保存”后，程序会清除旧的来源缓存并立即刷新统计。
 
-## 数据来源
+默认完整读取范围覆盖本月和上月。自定义日期早于默认范围时，程序会从指定日期执行完整读取；普通定时刷新仍使用增量策略。
 
-TokenFloat 调用 NewAPI 的个人消费数据接口 `/api/data/self` 读取消费记录，并使用返回的 Token、次数、模型和 `quota` 汇总展示。
+## 数据与隐私
 
-压缩缓存保存在 `%LOCALAPPDATA%\TokenFloat\usage-index-v7.json.gz`，只包含统计周期、模型、Token、次数、quota 和最近一次成功抓取时间，不保存提示词或响应正文。
+TokenFloat 使用以下接口：
 
-错误日志保存在 `%LOCALAPPDATA%\TokenFloat\logs`，只记录程序版本、异常类型、消息和堆栈，不主动写入提示词或认证信息。
+- `GET /api/status`：读取 `quota_per_unit`。
+- `GET /api/data/self`：读取个人消费记录，并使用返回的模型、Token、次数和 `quota` 汇总。
 
-## 消耗说明
+本地数据目录默认为 `%LOCALAPPDATA%\TokenFloat`：
 
-NewAPI 的 quota 通常按“`额度 = 分组倍率 * 模型倍率 * 补全倍率 * token 数量`”计算，TokenFloat 优先使用日志中的 quota，再除以服务 `/api/status` 返回的 `quota_per_unit` 换算为消耗金额。
+| 文件或目录 | 用途 |
+| --- | --- |
+| `app-settings.json` | NewAPI 地址、系统 Token、刷新设置和更新源。Token 仅保存在本机，请确保 Windows 用户账户安全。 |
+| `usage-index-v7.json.gz` | 压缩统计缓存，包含事件索引、汇总和最近成功抓取时间，不保存提示词或响应正文。 |
+| `logs` | 程序错误日志，记录上下文、异常类型、消息和堆栈。 |
 
-如果服务没有返回 `quota_per_unit`，程序使用 NewAPI 默认的 `500000` 作为换算值。实际账单仍以你的 NewAPI 部署为准。
+统计金额是基于 NewAPI quota 的估算值。若服务没有返回 `quota_per_unit`，程序使用 `500000` 作为默认换算值；最终账单以你的 NewAPI 部署为准。
 
 ## 从源码运行
 
+环境要求：
+
+- Windows 10/11 x64
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+
+在仓库根目录执行：
+
 ```powershell
+dotnet restore
+dotnet build TokenFloat\TokenFloat.csproj -c Release -warnaserror
 dotnet run --project TokenFloat\TokenFloat.csproj -c Release
 ```
 
-验证 NewAPI 统计但不打开窗口：
+只验证统计输出、不打开窗口：
 
 ```powershell
 dotnet run --project TokenFloat\TokenFloat.csproj -c Release -- --verify-usage
@@ -79,38 +118,71 @@ dotnet test TokenFloat.Tests\TokenFloat.Tests.csproj -c Release -warnaserror
 
 ## 本地构建安装包
 
+仓库提供了本地 Inno Setup 工具目录；`.tools` 不会提交到 GitHub。
+
 ```powershell
-dotnet publish TokenFloat\TokenFloat.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o artifacts\publish\win-x64
+dotnet publish TokenFloat\TokenFloat.csproj `
+  -c Release `
+  -r win-x64 `
+  --self-contained true `
+  -p:PublishSingleFile=true `
+  -p:DebugType=None `
+  -p:DebugSymbols=false `
+  -o artifacts\publish\win-x64
+
 .tools\InnoSetup6\ISCC.exe installer\TokenFloat.iss
 ```
 
-`.tools` 是本地工具目录，不会提交到 GitHub。GitHub Release 工作流会自动安装 Inno Setup。
+安装包输出到 `artifacts\installer\TokenFloat-Setup-x64.exe`。要安装到指定目录，可以使用 Inno Setup 的 `/DIR` 参数，例如：
 
-## GitHub 发布与自动更新
-
-仓库已包含：
-
-- `.github/workflows/build.yml`：每次推送和 Pull Request 自动执行零警告构建与测试
-- `.github/workflows/release.yml`：推送 `v*` 标签时自动创建安装包、SHA-256、更新清单和 GitHub Release
-- `scripts/set-version.ps1`：同步更新项目与安装程序版本
-
-首次提交和发布步骤见 [GitHub 发布指南](docs/GITHUB_RELEASE.md)。
-
-程序默认更新源为：
-
-```text
-https://github.com/Dream-Tian/TokenFloat/releases/latest/download/update-manifest.json
+```powershell
+Start-Process artifacts\installer\TokenFloat-Setup-x64.exe `
+  -ArgumentList '/DIR=D:\TokenFloat'
 ```
 
-右键菜单的“设置...”页面可以覆盖该地址。
+## 发布流程
+
+版本号同时维护在项目文件、Inno Setup 脚本和示例更新清单中。发布新版本时先同步版本：
+
+```powershell
+.\scripts\set-version.ps1 -Version 2.0.6
+dotnet build TokenFloat\TokenFloat.csproj -c Release -warnaserror
+dotnet test TokenFloat.Tests\TokenFloat.Tests.csproj -c Release -warnaserror
+
+git add -A
+git commit -m "Release 2.0.6"
+git push origin main
+git tag -a v2.0.6 -m "TokenFloat 2.0.6"
+git push origin v2.0.6
+```
+
+推送 `v*` 标签后，GitHub Actions 会自动执行测试、构建自包含安装包、生成 SHA-256 清单并创建 GitHub Release。相关工作流位于：
+
+- `.github/workflows/build.yml`：推送和 Pull Request 的构建与测试。
+- `.github/workflows/release.yml`：标签发布、安装包和更新清单。
+- `scripts/set-version.ps1`：同步项目版本、安装器版本和示例清单。
+
+## 常见问题
+
+### 测试连接失败
+
+确认服务地址是完整的 `http://` 或 `https://` 地址，Token 没有多余空格，并检查服务端是否要求填写用户 ID。设置页状态会显示 HTTP 状态或请求失败原因。
+
+### 有数据但刷新后仍显示旧统计
+
+打开设置页的本地数据区域，点击“清除统计缓存”后重新读取。缓存超过 7 天或更改 NewAPI 来源后也会自动执行完整读取。
+
+### 金额和账单不一致
+
+TokenFloat 使用 NewAPI 返回的 `quota` 和 `quota_per_unit` 计算估算金额。请检查服务端的分组倍率、模型倍率和补全倍率，最终账单以 NewAPI 为准。
 
 ## 项目结构
 
 ```text
-TokenFloat/               WPF 应用源码与资源
-TokenFloat.Tests/         用量、费用和更新服务自动测试
-installer/                Inno Setup 安装脚本和更新清单示例
+TokenFloat/               WPF 应用源码、窗口和资源
+TokenFloat.Tests/         用量、费用、连接和更新服务测试
+installer/                Inno Setup 脚本和更新清单示例
 scripts/                  版本与图标维护脚本
-.github/workflows/        GitHub 持续构建和自动发布
-docs/                     发布文档
+docs/                     发布文档和 README 截图
+.github/workflows/        GitHub Actions 构建与发布流程
 ```
