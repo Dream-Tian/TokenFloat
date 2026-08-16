@@ -24,6 +24,21 @@ public sealed class ErrorLogServiceTests : IDisposable
     }
 
     [Fact]
+    public void Write_RedactsBearerAndBasicCredentials()
+    {
+        var service = new ErrorLogService(_folder);
+
+        service.Write("test", new InvalidOperationException(
+            "Authorization: Bearer sk-live-abcdef123 authorization: Basic dXNlcjpwYXNz \"api_key\": \"Bearer sk-json-999\""));
+
+        var logPath = Assert.Single(Directory.EnumerateFiles(Path.Combine(_folder, "logs"), "*.log"));
+        var content = File.ReadAllText(logPath);
+        Assert.DoesNotContain("sk-live-abcdef123", content);
+        Assert.DoesNotContain("dXNlcjpwYXNz", content);
+        Assert.DoesNotContain("sk-json-999", content);
+    }
+
+    [Fact]
     public void Constructor_DeletesLogsOlderThanRetentionPeriod()
     {
         var logFolder = Path.Combine(_folder, "logs");

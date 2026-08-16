@@ -79,6 +79,6 @@ public sealed partial class ErrorLogService
     private static string Sanitize(string value) =>
         SecretPattern().Replace(value, "$1=[redacted]");
 
-    [GeneratedRegex("(?i)(token|key|secret|password|authorization)\\s*[=:]\\s*[^\\s&]+")]
+    [GeneratedRegex("(?i)(token|key|secret|password|authorization)[\"']?\\s*[=:]\\s*[\"']?\\s*(?:bearer\\s+|basic\\s+)?[^\\s&\"']+")]
     private static partial Regex SecretPattern();
 }

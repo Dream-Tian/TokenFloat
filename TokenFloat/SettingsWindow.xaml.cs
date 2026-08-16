@@ -49,6 +49,7 @@ public partial class SettingsWindow : Window
         ManifestUrlTextBox.Text = settings.ManifestUrl;
         var appSettings = _appSettingsService.Settings;
         RefreshOnlyVisibleCheckBox.IsChecked = appSettings.RefreshOnlyWhenVisible;
+        KeepOnTopCheckBox.IsChecked = appSettings.KeepWindowOnTop;
         NewApiBaseUrlTextBox.Text = appSettings.NewApiBaseUrl;
         NewApiTokenPasswordBox.Password = appSettings.NewApiAccessToken;
         NewApiUserIdTextBox.Text = appSettings.NewApiUserId > 0
@@ -82,6 +83,18 @@ public partial class SettingsWindow : Window
 
     private void RefreshOnlyVisibleCheckBox_Click(object sender, RoutedEventArgs e) =>
         SaveRefreshSettings();
+
+    private void KeepOnTopCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+
+        var enabled = KeepOnTopCheckBox.IsChecked == true;
+        _appSettingsService.SetKeepWindowOnTop(enabled);
+        ShowStatus(enabled ? "窗口将保持置顶" : "窗口置顶已关闭", true);
+    }
 
     private async void SaveNewApiButton_Click(object sender, RoutedEventArgs e)
     {

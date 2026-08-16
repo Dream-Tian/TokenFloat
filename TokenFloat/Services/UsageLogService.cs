@@ -52,7 +52,7 @@ public sealed class UsageLogService
     }
 
     /// <summary>
-    /// 返回上次从 NewAPI 拉取并压缩保存的汇总，供窗口启动后立即展示。
+    /// 返回上次从 NewAPI 拉取并压缩保存的事件，按当前日期边界重新聚合，避免跨天后沿用旧口径。
     /// </summary>
     public UsageSnapshot? GetCachedSnapshot()
     {
@@ -62,9 +62,7 @@ public sealed class UsageLogService
             return null;
         }
 
-        return _cache.Providers.Count > 0
-            ? new UsageSnapshot(DateTime.Now, _cache.Providers, _cache.Events, _cache.SourceMessage, _cache.QuotaPerUnit)
-            : BuildSnapshot(_cache.Events, _cache.SourceMessage, _cache.QuotaPerUnit);
+        return BuildSnapshot(_cache.Events, _cache.SourceMessage, _cache.QuotaPerUnit);
     }
 
     /// <summary>
@@ -171,13 +169,7 @@ public sealed class UsageLogService
                 : fetchedEvents;
             var message = $"NewAPI · {NormalizeBaseUrl(settings.NewApiBaseUrl)} · {now:HH:mm:ss}";
             var snapshot = BuildSnapshot(events, message, quotaPerUnit);
-            SavePersistentCache(
-                settings,
-                snapshot.Providers,
-                snapshot.Events,
-                message,
-                quotaPerUnit,
-                DateTimeOffset.UtcNow);
+            SavePersistentCache(settings, snapshot.Events, message, quotaPerUnit, DateTimeOffset.UtcNow);
             return snapshot;
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException or UriFormatException or FormatException)
@@ -294,11 +286,20 @@ public sealed class UsageLogService
             }
 
             result.AddRange(await FetchQuotaDataChunkAsync(settings, cursor, chunkEnd, cancellationToken));
-            cursor = chunkEnd.AddSeconds(1);
+            cursor = chunkEnd;
         }
 
-        return result;
+        return CollapseDuplicateRows(result);
     }
+
+    /// <summary>
+    /// NewAPI 返回按小时聚合的行；相邻分片边界会重复带回同一行，按创建秒和模型去重并保留数值最大的一条。
+    /// </summary>
+    private static IReadOnlyList<NewApiQuotaData> CollapseDuplicateRows(List<NewApiQuotaData> rows) =>
+        rows
+            .GroupBy(row => (row.CreatedAt, row.ModelName))
+            .Select(group => group.MaxBy(row => row.TokenUsed + row.Count + row.Quota)!)
+            .ToList();
 
     private async Task<IReadOnlyList<NewApiQuotaData>> FetchQuotaDataChunkAsync(
         AppSettings settings,
@@ -449,7 +450,6 @@ public sealed class UsageLogService
 
     private void SavePersistentCache(
         AppSettings settings,
-        IReadOnlyList<ProviderUsage> providers,
         IReadOnlyList<TokenUsageEvent> events,
         string sourceMessage,
         decimal quotaPerUnit,
@@ -467,7 +467,6 @@ public sealed class UsageLogService
                 SourceMessage = sourceMessage,
                 QuotaPerUnit = quotaPerUnit,
                 LastFetchedUtc = fetchedUtc,
-                Providers = providers.ToList(),
                 Events = events.ToList()
             };
 
@@ -537,8 +536,6 @@ public sealed class UsageLogService
         public decimal QuotaPerUnit { get; set; } = DefaultQuotaPerUnit;
 
         public DateTimeOffset? LastFetchedUtc { get; set; }
-
-        public List<ProviderUsage> Providers { get; set; } = [];
 
         public List<TokenUsageEvent> Events { get; set; } = [];
     }

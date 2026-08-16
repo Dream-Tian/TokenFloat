@@ -113,6 +113,88 @@ public sealed class UsageAndPricingTests
         Assert.False(estimate.IsComplete);
     }
 
+    [Fact]
+    public void RatesFor_UsesLocalPeriodBoundaries()
+    {
+        var now = new DateTime(2026, 7, 15, 12, 0, 0);
+        var snapshot = new UsageSnapshot(
+            now,
+            [
+                new ProviderUsage(
+                    "NewAPI",
+                    new TokenTotals(600, 120, 0, 720),
+                    new TokenTotals(0, 0, 0),
+                    new TokenTotals(0, 0, 0),
+                    true)
+            ],
+            []);
+
+        var rates = snapshot.RatesFor(UsagePeriod.Today, now);
+
+        Assert.Equal(720, rates.RequestCount);
+        Assert.Equal(1d, rates.AverageRpm, 5);
+        Assert.Equal(1d, rates.AverageTpm, 5);
+    }
+
+    [Fact]
+    public void EstimateModels_GroupsEventsByModelInOnePass()
+    {
+        var snapshot = UsageLogService.BuildSnapshot(
+            [
+                new TokenUsageEvent("one", "NewAPI", DateTimeOffset.Now, 1_000, 200, 0, "gpt-test", Quota: 100_000),
+                new TokenUsageEvent("two", "NewAPI", DateTimeOffset.Now, 500, 100, 0, "claude-x", Quota: 50_000)
+            ],
+            quotaPerUnit: 500_000m);
+
+        var estimates = new PricingService().EstimateModels(snapshot, UsagePeriod.Today);
+
+        Assert.Equal(2, estimates.Count);
+        Assert.Equal(0.2m, estimates["gpt-test"].EstimatedUsd);
+        Assert.Equal(0.1m, estimates["claude-x"].EstimatedUsd);
+        Assert.True(estimates["gpt-test"].IsQuotaBased);
+    }
+
+    [Fact]
+    public void TrendFor_FiltersByModel()
+    {
+        var now = new DateTime(2026, 7, 15, 12, 0, 0);
+        var offset = TimeZoneInfo.Local.GetUtcOffset(now);
+        var snapshot = new UsageSnapshot(
+            now,
+            [],
+            [
+                new TokenUsageEvent("one", "NewAPI", new DateTimeOffset(now.AddHours(-2), offset), 600, 120, 0, "gpt-test", RequestCount: 5),
+                new TokenUsageEvent("two", "NewAPI", new DateTimeOffset(now.AddHours(-1), offset), 300, 60, 0, "claude-x", RequestCount: 2)
+            ]);
+
+        var filtered = snapshot.TrendFor(UsagePeriod.Today, now, "gpt-test");
+        var total = snapshot.TrendFor(UsagePeriod.Today, now, null);
+
+        Assert.Equal(720, filtered.Points.Sum(point => point.Tokens));
+        Assert.Equal(1080, total.Points.Sum(point => point.Tokens));
+    }
+
+    [Fact]
+    public void CurrentHourRatesFor_OnlyCountsCurrentHour()
+    {
+        var now = new DateTime(2026, 7, 15, 14, 30, 0);
+        var offset = TimeZoneInfo.Local.GetUtcOffset(now);
+        var snapshot = new UsageSnapshot(
+            now,
+            [],
+            [
+                new TokenUsageEvent("current", "NewAPI", new DateTimeOffset(now.Date.AddHours(14), offset), 600, 0, 0, "gpt-test", RequestCount: 60),
+                new TokenUsageEvent("previous", "NewAPI", new DateTimeOffset(now.Date.AddHours(13), offset), 6_000, 0, 0, "gpt-test", RequestCount: 600),
+                new TokenUsageEvent("future", "NewAPI", new DateTimeOffset(now.AddMinutes(5), offset), 500, 0, 0, "gpt-test", RequestCount: 50)
+            ]);
+
+        var rates = snapshot.CurrentHourRatesFor(now);
+
+        Assert.Equal(60, rates.RequestCount);
+        Assert.Equal(2d, rates.AverageRpm, 5);
+        Assert.Equal(20d, rates.AverageTpm, 5);
+    }
+
     [Theory]
     [InlineData(UsagePeriod.Today)]
     [InlineData(UsagePeriod.Week)]

@@ -38,6 +38,7 @@ public partial class MainWindow : Window
     private readonly PricingService _pricingService = new();
     private readonly WindowPositionStore _positionStore = new();
     private readonly DispatcherTimer _refreshTimer;
+    private readonly DispatcherTimer _trendResizeTimer;
     private UsageSnapshot? _snapshot;
     private UsagePeriod _period = UsagePeriod.Today;
     private UsageDateRange? _customRange;
@@ -46,6 +47,7 @@ public partial class MainWindow : Window
     private TrendMetric _trendMetric = TrendMetric.Cost;
     private TrendChartStyle _trendChartStyle = TrendChartStyle.Bars;
     private NormalTab _normalTab = NormalTab.Overview;
+    private string? _trendModelFilter;
     private double _trendMaximum;
     private bool _isMiniMode;
     private long? _lastTodayTokens;
@@ -63,10 +65,11 @@ public partial class MainWindow : Window
         _appSettingsService = appSettingsService;
         Topmost = false;
         _isMiniMode = _positionStore.LoadMiniMode();
+        LoadUiState();
         ApplyWindowMode();
         _refreshTimer = new DispatcherTimer();
-        ApplyRefreshSettings(_appSettingsService.Settings);
-        _appSettingsService.SettingsChanged += ApplyRefreshSettings;
+        ApplySettings(_appSettingsService.Settings);
+        _appSettingsService.SettingsChanged += ApplySettings;
         _refreshTimer.Tick += async (_, _) =>
         {
             if (!_appSettingsService.Settings.RefreshOnlyWhenVisible || IsVisible)
@@ -76,12 +79,23 @@ public partial class MainWindow : Window
         };
         Loaded += MainWindow_Loaded;
         Closing += MainWindow_Closing;
+        _trendResizeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+        _trendResizeTimer.Tick += (_, _) =>
+        {
+            _trendResizeTimer.Stop();
+            DrawUsageTrend();
+        };
+        SizeChanged += (_, _) =>
+        {
+            _trendResizeTimer.Stop();
+            _trendResizeTimer.Start();
+        };
         Closed += (_, _) =>
         {
             _refreshTimer.Stop();
-            _appSettingsService.SettingsChanged -= ApplyRefreshSettings;
+            _trendResizeTimer.Stop();
+            _appSettingsService.SettingsChanged -= ApplySettings;
         };
-        SizeChanged += (_, _) => DrawUsageTrend();
         StateChanged += (_, _) =>
         {
             if (WindowState == WindowState.Minimized)
@@ -98,6 +112,7 @@ public partial class MainWindow : Window
         UpdateTrendMetricButtons();
         UpdateTrendChartStyleButtons();
         UpdateNormalTabButtons();
+        UpdateTrendFilterChip();
 
         if (_usageLogService.GetCachedSnapshot() is { } cachedSnapshot)
         {
@@ -172,8 +187,43 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ApplyRefreshSettings(AppSettings settings) =>
+    /// <summary>
+    /// 恢复上次会话的标签页、趋势指标、图表样式和模型筛选。
+    /// </summary>
+    private void LoadUiState()
+    {
+        var state = _positionStore.LoadUiState();
+        if (state?.Tab is { } tab && Enum.TryParse(tab, out NormalTab savedTab))
+        {
+            _normalTab = savedTab;
+        }
+
+        if (state?.TrendMetric is { } metric && Enum.TryParse(metric, out TrendMetric savedMetric))
+        {
+            _trendMetric = savedMetric;
+        }
+
+        if (state?.TrendChartStyle is { } style && Enum.TryParse(style, out TrendChartStyle savedStyle))
+        {
+            _trendChartStyle = savedStyle;
+        }
+
+        _trendModelFilter = string.IsNullOrWhiteSpace(state?.TrendModelFilter) ? null : state!.TrendModelFilter;
+        Topmost = _appSettingsService.Settings.KeepWindowOnTop;
+    }
+
+    private void SaveUiState() =>
+        _positionStore.SaveUiState(new DashboardUiState(
+            _normalTab.ToString(),
+            _trendMetric.ToString(),
+            _trendChartStyle.ToString(),
+            _trendModelFilter));
+
+    private void ApplySettings(AppSettings settings)
+    {
         _refreshTimer.Interval = TimeSpan.FromSeconds(settings.RefreshIntervalSeconds);
+        Topmost = settings.KeepWindowOnTop;
+    }
 
     private void RenderSnapshot()
     {
@@ -187,9 +237,12 @@ public partial class MainWindow : Window
         TotalTokensText.Text = FormatTokens(total.TotalTokens);
         PrimaryUnitText.Text = " Token";
         var rates = ActiveRates();
+        var hourRates = _snapshot.CurrentHourRatesFor();
         RequestCountText.Text = FormatCount(rates.RequestCount);
-        AverageRpmText.Text = FormatRate(rates.AverageRpm);
-        AverageTpmText.Text = FormatRate(rates.AverageTpm);
+        AverageRpmText.Text = FormatRate(hourRates.AverageRpm);
+        AverageTpmText.Text = FormatRate(hourRates.AverageTpm);
+        RpmCard.ToolTip = $"本小时 RPM {FormatRate(hourRates.AverageRpm)} · 周期平均 {FormatRate(rates.AverageRpm)}";
+        TpmCard.ToolTip = $"本小时 TPM {FormatRate(hourRates.AverageTpm)} · 周期平均 {FormatRate(rates.AverageTpm)}";
         EstimatedCostText.Text = FormatCost(pricing);
         EstimatedCostText.ToolTip = BuildCostTooltip(pricing);
         var today = _snapshot.TotalFor(UsagePeriod.Today);
@@ -212,6 +265,7 @@ public partial class MainWindow : Window
 
         _normalTab = tab;
         UpdateNormalTabButtons();
+        SaveUiState();
         if (tab == NormalTab.Trend)
         {
             DrawUsageTrend();
@@ -242,8 +296,9 @@ public partial class MainWindow : Window
         }
 
         var periodPricing = ActivePricing();
+        var modelPricing = ActiveModelPricing();
         var ranking = ActiveModelsFor()
-            .Select(model => new ModelRankingEntry(model, ActiveModelPricing(model.Model)))
+            .Select(model => new ModelRankingEntry(model, modelPricing.GetValueOrDefault(model.Model) ?? ZeroPricing))
             .OrderByDescending(item => item.Model.Totals.TotalTokens)
             .ToArray();
         ModelPageTitle.Text = $"模型用量 · {PeriodShortText()}";
@@ -302,15 +357,18 @@ public partial class MainWindow : Window
         }
 
         var trend = _customRange is null
-            ? _pricingService.Trend(_snapshot, _period)
-            : _pricingService.Trend(_snapshot, _customRange);
+            ? _pricingService.Trend(_snapshot, _period, _trendModelFilter)
+            : _pricingService.Trend(_snapshot, _customRange, _trendModelFilter);
         var maximum = trend.Points.Count == 0 ? 0 : trend.Points.Max(TrendValue);
         _trendPoints = trend.Points;
         _trendMaximum = maximum;
         TrendTitleText.Text = trend.Title;
-        TrendTotalText.Text = _trendMetric == TrendMetric.Tokens
-            ? $"总计 {FormatTokens(trend.Points.Sum(point => point.Tokens))}"
-            : $"总计 {FormatCost(ActivePricing())}";
+        TrendTotalText.Text = _trendMetric switch
+        {
+            TrendMetric.Tokens => $"总计 {FormatTokens(trend.Points.Sum(point => point.Tokens))}",
+            TrendMetric.Requests => $"总计 {FormatCount(trend.Points.Sum(point => point.RequestCount))}",
+            _ => $"总计 {FormatUsd(trend.Points.Sum(point => point.Pricing.EstimatedUsd))}"
+        };
         RestoreTrendPeakText();
         TrendHoverCanvas.Visibility = Visibility.Collapsed;
         UsageTrendCanvas.Children.Clear();
@@ -487,13 +545,21 @@ public partial class MainWindow : Window
         }
 
         var peak = _trendPoints.MaxBy(TrendValue)!;
-        TrendPeakText.Text = _trendMetric == TrendMetric.Tokens
-            ? $"峰 {FormatTokens(peak.Tokens)}"
-            : $"峰 {FormatCost(peak.Pricing)}";
+        TrendPeakText.Text = _trendMetric switch
+        {
+            TrendMetric.Tokens => $"峰 {FormatTokens(peak.Tokens)}",
+            TrendMetric.Requests => $"峰 {FormatCount(peak.RequestCount)}",
+            _ => $"峰 {FormatUsd(peak.Pricing.EstimatedUsd)}"
+        };
     }
 
     private double TrendValue(PricingTrendPoint point) =>
-        _trendMetric == TrendMetric.Tokens ? point.Tokens : (double)point.Pricing.EstimatedUsd;
+        _trendMetric switch
+        {
+            TrendMetric.Tokens => point.Tokens,
+            TrendMetric.Requests => point.RequestCount,
+            _ => (double)point.Pricing.EstimatedUsd
+        };
 
     private double TrendPointX(int index, int pointCount, double plotWidth) =>
         _trendChartStyle == TrendChartStyle.Bars
@@ -501,14 +567,20 @@ public partial class MainWindow : Window
             : TrendPlotLeft + index * plotWidth / Math.Max(1, pointCount - 1);
 
     private Color TrendAccentColor() =>
-        _trendMetric == TrendMetric.Tokens
-            ? Color.FromRgb(76, 134, 198)
-            : Color.FromRgb(245, 154, 50);
+        _trendMetric switch
+        {
+            TrendMetric.Tokens => Color.FromRgb(76, 134, 198),
+            TrendMetric.Requests => Color.FromRgb(139, 108, 214),
+            _ => Color.FromRgb(245, 154, 50)
+        };
 
     private string FormatTrendAxisValue(double value) =>
-        _trendMetric == TrendMetric.Tokens
-            ? FormatTokens((long)Math.Round(value))
-            : value >= 100 ? $"${value:0}" : $"${value:0.##}";
+        _trendMetric switch
+        {
+            TrendMetric.Tokens => FormatTokens((long)Math.Round(value)),
+            TrendMetric.Requests => FormatCount((long)Math.Round(value)),
+            _ => value >= 100 ? $"${value:0}" : $"${value:0.##}"
+        };
 
     private void TrendMetricButton_Click(object sender, RoutedEventArgs e)
     {
@@ -519,12 +591,14 @@ public partial class MainWindow : Window
 
         _trendMetric = metric;
         UpdateTrendMetricButtons();
+        SaveUiState();
         DrawUsageTrend();
     }
 
     private void UpdateTrendMetricButtons()
     {
         SetSegmentButtonState(TrendTokensButton, _trendMetric == TrendMetric.Tokens);
+        SetSegmentButtonState(TrendRequestsButton, _trendMetric == TrendMetric.Requests);
         SetSegmentButtonState(TrendCostButton, _trendMetric == TrendMetric.Cost);
     }
 
@@ -537,6 +611,7 @@ public partial class MainWindow : Window
 
         _trendChartStyle = chartStyle;
         UpdateTrendChartStyleButtons();
+        SaveUiState();
         DrawUsageTrend();
     }
 
@@ -562,10 +637,11 @@ public partial class MainWindow : Window
         ModelRankingTitle.Text = $"模型榜 · {PeriodShortText()}";
         ModelRankingPanel.Children.Clear();
         var periodPricing = ActivePricing();
+        var modelPricing = ActiveModelPricing();
         var ranking = ActiveModelsFor()
             .Select(model => new ModelRankingEntry(
                 model,
-                ActiveModelPricing(model.Model)))
+                modelPricing.GetValueOrDefault(model.Model) ?? ZeroPricing))
             .OrderByDescending(item => item.Model.Totals.TotalTokens)
             .ToArray();
 
@@ -597,10 +673,38 @@ public partial class MainWindow : Window
             ? _snapshot!.ModelsFor(_period)
             : _snapshot!.ModelsFor(_customRange);
 
-    private PricingEstimate ActiveModelPricing(string model) =>
+    private IReadOnlyDictionary<string, PricingEstimate> ActiveModelPricing() =>
         _customRange is null
-            ? _pricingService.EstimateModel(_snapshot!, model, _period)
-            : _pricingService.EstimateModel(_snapshot!, model, _customRange);
+            ? _pricingService.EstimateModels(_snapshot!, _period)
+            : _pricingService.EstimateModels(_snapshot!, _customRange);
+
+    /// <summary>
+    /// 点击模型行后仅按该模型过滤趋势图，并切换到趋势标签页。
+    /// </summary>
+    private void ApplyTrendModelFilter(string? model)
+    {
+        _trendModelFilter = string.IsNullOrWhiteSpace(model) ? null : model;
+        UpdateTrendFilterChip();
+        SaveUiState();
+        _normalTab = NormalTab.Trend;
+        UpdateNormalTabButtons();
+        DrawUsageTrend();
+        ModelRankingPopup.IsOpen = false;
+    }
+
+    private void TrendModelFilterButton_Click(object sender, RoutedEventArgs e) =>
+        ApplyTrendModelFilter(null);
+
+    private void UpdateTrendFilterChip()
+    {
+        TrendModelFilterButton.Visibility = _trendModelFilter is null
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        if (_trendModelFilter is not null)
+        {
+            TrendModelFilterButton.Content = $"✕ {_trendModelFilter}";
+        }
+    }
 
     private FrameworkElement CreateModelRankingRow(
         int rank,
@@ -671,12 +775,16 @@ public partial class MainWindow : Window
         Grid.SetColumn(values, 2);
         grid.Children.Add(values);
 
-        return new Border
+        var row = new Border
         {
             BorderBrush = (Brush)FindResource("DashboardBorder"),
             BorderThickness = new Thickness(0, 0, 0, 1),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            ToolTip = "点击查看该模型趋势",
             Child = grid
         };
+        row.MouseLeftButtonDown += (_, _) => ApplyTrendModelFilter(item.Model.Model);
+        return row;
     }
 
     private string PeriodShortText() => _customRange?.Title ?? (_period switch
@@ -688,7 +796,7 @@ public partial class MainWindow : Window
 
     public void ShowFromTray()
     {
-        Topmost = false;
+        Topmost = _appSettingsService.Settings.KeepWindowOnTop;
         Show();
         WindowState = WindowState.Normal;
         Activate();
@@ -1029,6 +1137,7 @@ public partial class MainWindow : Window
     private enum TrendMetric
     {
         Tokens,
+        Requests,
         Cost
     }
 
@@ -1048,4 +1157,6 @@ public partial class MainWindow : Window
     private sealed record ModelRankingEntry(
         ModelUsage Model,
         PricingEstimate Pricing);
+
+    private static readonly PricingEstimate ZeroPricing = new(0m, 0, 0, []);
 }

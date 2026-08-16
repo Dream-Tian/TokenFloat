@@ -94,6 +94,31 @@ public sealed class UsageLogServiceTests : IDisposable
         Assert.Equal(100, first.TotalFor(UsagePeriod.Today).TotalTokens);
     }
 
+    [Fact]
+    public async Task LoadSnapshot_CollapsesDuplicateRowsForSameHourAndModel()
+    {
+        var hourStart = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.Now.ToUnixTimeSeconds() / 3600 * 3600);
+        var rows = string.Join(",",
+            $"{{\"model_name\":\"gpt-test\",\"created_at\":{hourStart.ToUnixTimeSeconds()},\"token_used\":100,\"count\":1,\"quota\":50}}",
+            $"{{\"model_name\":\"gpt-test\",\"created_at\":{hourStart.ToUnixTimeSeconds()},\"token_used\":200,\"count\":2,\"quota\":120}}");
+        var handler = new RecordingHandler(request =>
+            request.RequestUri!.AbsolutePath.EndsWith("/api/status", StringComparison.Ordinal)
+                ? JsonResponse("{\"quota_per_unit\":500000}")
+                : JsonResponse($"{{\"success\":true,\"data\":[{rows}]}}"));
+        var settingsService = new AppSettingsService(Path.Combine(_folder, "settings"));
+        settingsService.SetNewApi("https://newapi.example.com", "test-token", 0);
+        using var client = new HttpClient(handler);
+        var service = new UsageLogService(settingsService, client, Path.Combine(_folder, "cache"));
+
+        var snapshot = await service.LoadSnapshotAsync();
+
+        var usage = Assert.Single(snapshot.Events);
+        Assert.Equal(120, usage.Quota);
+        Assert.Equal(200, usage.InputTokens);
+        Assert.Equal(2, usage.RequestCount);
+        Assert.Equal(120, snapshot.Events.Sum(item => item.Quota));
+    }
+
     private static HttpResponseMessage JsonResponse(string json) =>
         new(HttpStatusCode.OK)
         {

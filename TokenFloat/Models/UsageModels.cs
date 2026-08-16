@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TokenFloat.Models;
 
 public enum UsagePeriod
@@ -40,7 +42,11 @@ public sealed record TokenUsageEvent(
     long CacheWriteInputTokens = 0,
     long CacheWriteOneHourInputTokens = 0,
     long Quota = 0,
-    long RequestCount = 1);
+    long RequestCount = 1)
+{
+    [JsonIgnore]
+    public string NormalizedModel => string.IsNullOrWhiteSpace(Model) ? "未标注模型" : Model;
+}
 
 public sealed record TokenTotals(
     long InputTokens,
@@ -98,12 +104,12 @@ public sealed record UsageSnapshot(
             string.Equals(item.Provider, provider, StringComparison.Ordinal)));
 
     /// <summary>
-    /// 按 NewAPI 的 UTC 周期边界计算平均请求和 Token 速率。
+    /// 按当前周期的本地时间边界计算平均请求和 Token 速率，与各周期总量的统计口径保持一致。
     /// </summary>
     public UsageRates RatesFor(UsagePeriod period, DateTime? now = null)
     {
         var current = now ?? DateTime.Now;
-        var start = UtcPeriodStartInLocalTime(period, current);
+        var start = PeriodStart(period, current);
         var elapsedMinutes = Math.Max(1, (current - start).TotalMinutes);
         var total = TotalFor(period);
 
@@ -148,7 +154,7 @@ public sealed record UsageSnapshot(
 
     private static IReadOnlyList<ModelUsage> BuildModels(IEnumerable<TokenUsageEvent> source) =>
         source
-            .GroupBy(item => string.IsNullOrWhiteSpace(item.Model) ? "未标注模型" : item.Model!)
+            .GroupBy(item => item.NormalizedModel)
             .Select(group => new ModelUsage(
                 group.Key,
                 group.Aggregate(
@@ -203,9 +209,9 @@ public sealed record UsageSnapshot(
     }
 
     /// <summary>
-    /// 今日按小时、本周按星期、本月按日期生成趋势点。
+    /// 今日按小时、本周按星期、本月按日期生成趋势点，可只统计指定模型。
     /// </summary>
-    public UsageTrend TrendFor(UsagePeriod period, DateTime? now = null)
+    public UsageTrend TrendFor(UsagePeriod period, DateTime? now = null, string? model = null)
     {
         var current = now ?? DateTime.Now;
         var start = PeriodStart(period, current);
@@ -225,6 +231,11 @@ public sealed record UsageSnapshot(
 
         foreach (var item in Events)
         {
+            if (model is not null && item.NormalizedModel != model)
+            {
+                continue;
+            }
+
             var timestamp = item.Timestamp.LocalDateTime;
             if (timestamp < start || timestamp >= end)
             {
@@ -273,9 +284,9 @@ public sealed record UsageSnapshot(
     }
 
     /// <summary>
-    /// 自定义范围按跨度自动选择小时、日、周或 30 日分桶，避免折线点过密。
+    /// 自定义范围按跨度自动选择小时、日、周或 30 日分桶，避免折线点过密，可只统计指定模型。
     /// </summary>
-    public UsageTrend TrendFor(UsageDateRange range)
+    public UsageTrend TrendFor(UsageDateRange range, string? model = null)
     {
         var bucketDuration = range.DayCount switch
         {
@@ -284,6 +295,7 @@ public sealed record UsageSnapshot(
             <= 180 => TimeSpan.FromDays(7),
             _ => TimeSpan.FromDays(30)
         };
+        var buckets = BucketTokens(range.Start, range.EndExclusive, bucketDuration, model);
         var points = new List<UsageTrendPoint>();
         for (var pointStart = range.Start; pointStart < range.EndExclusive; pointStart += bucketDuration)
         {
@@ -300,9 +312,10 @@ public sealed record UsageSnapshot(
                 <= 180 => $"{pointStart:MM.dd} 周",
                 _ => $"{pointStart:yyyy.MM}"
             };
+            var index = (int)((pointStart.Ticks - range.Start.Ticks) / bucketDuration.Ticks);
             points.Add(new UsageTrendPoint(
                 label,
-                SumTokens(pointStart, pointEnd),
+                buckets[index],
                 pointStart,
                 pointEnd));
         }
@@ -317,6 +330,35 @@ public sealed record UsageSnapshot(
         return new UsageTrend(title, points);
     }
 
+    /// <summary>
+    /// 单次遍历事件并按等宽分桶累加 Token，替代每个趋势点单独扫描全部事件。
+    /// </summary>
+    private long[] BucketTokens(DateTime start, DateTime endExclusive, TimeSpan bucketDuration, string? model = null)
+    {
+        var bucketCount = Math.Max(
+            1,
+            (int)Math.Ceiling((endExclusive.Ticks - start.Ticks) / (double)bucketDuration.Ticks));
+        var buckets = new long[bucketCount];
+        foreach (var item in Events)
+        {
+            if (model is not null && item.NormalizedModel != model)
+            {
+                continue;
+            }
+
+            var timestamp = item.Timestamp.LocalDateTime;
+            if (timestamp < start || timestamp >= endExclusive)
+            {
+                continue;
+            }
+
+            var index = (int)((timestamp.Ticks - start.Ticks) / bucketDuration.Ticks);
+            buckets[index] += item.InputTokens + item.OutputTokens;
+        }
+
+        return buckets;
+    }
+
     private static DateTime PeriodStart(UsagePeriod period, DateTime current) => period switch
     {
         UsagePeriod.Today => current.Date,
@@ -324,16 +366,29 @@ public sealed record UsageSnapshot(
         _ => new DateTime(current.Year, current.Month, 1)
     };
 
-    private static DateTime UtcPeriodStartInLocalTime(UsagePeriod period, DateTime current)
+    /// <summary>
+    /// 计算当前小时截至此刻的请求和 Token 速率，反映实时负载；NewAPI 汇总按小时聚合，更短窗口无法准确切分。
+    /// </summary>
+    public UsageRates CurrentHourRatesFor(DateTime? now = null)
     {
-        var utc = current.ToUniversalTime();
-        var utcStart = period switch
+        var current = now ?? DateTime.Now;
+        var hourStart = current.Date.AddHours(current.Hour);
+        long requests = 0;
+        long tokens = 0;
+        foreach (var item in Events)
         {
-            UsagePeriod.Today => utc.Date,
-            UsagePeriod.Week => utc.Date.AddDays(-(((int)utc.DayOfWeek + 6) % 7)),
-            _ => new DateTime(utc.Year, utc.Month, 1, 0, 0, 0, DateTimeKind.Utc)
-        };
-        return utcStart.ToLocalTime();
+            var timestamp = item.Timestamp.LocalDateTime;
+            if (timestamp < hourStart || timestamp > current)
+            {
+                continue;
+            }
+
+            requests += Math.Max(0, item.RequestCount);
+            tokens += item.InputTokens + item.OutputTokens;
+        }
+
+        var elapsedMinutes = Math.Max(1d, (current - hourStart).TotalMinutes);
+        return new UsageRates(requests, requests / elapsedMinutes, tokens / elapsedMinutes);
     }
 
     private long SumTokens(DateTime start, DateTime end) => Events

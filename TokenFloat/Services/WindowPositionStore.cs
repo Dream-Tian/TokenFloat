@@ -6,10 +6,13 @@ namespace TokenFloat.Services;
 
 public sealed class WindowPositionStore
 {
-    private readonly string _folder = Path.Combine(
-        Environment.GetEnvironmentVariable("LOCALAPPDATA")
-            ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "TokenFloat");
+    private readonly string _folder;
+
+    public WindowPositionStore(string? dataFolder = null) =>
+        _folder = dataFolder ?? Path.Combine(
+            Environment.GetEnvironmentVariable("LOCALAPPDATA")
+                ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TokenFloat");
 
     public void Restore(Window window, bool miniMode)
     {
@@ -104,10 +107,48 @@ public sealed class WindowPositionStore
         }
     }
 
+    /// <summary>
+    /// 读取仪表盘界面状态（标签页、趋势指标、图表样式和模型筛选），缺失或损坏时返回 null。
+    /// </summary>
+    public DashboardUiState? LoadUiState()
+    {
+        try
+        {
+            if (!File.Exists(UiStatePath))
+            {
+                return null;
+            }
+
+            return JsonSerializer.Deserialize<DashboardUiState>(File.ReadAllText(UiStatePath));
+        }
+        catch (IOException)
+        {
+        }
+        catch (JsonException)
+        {
+        }
+
+        return null;
+    }
+
+    public void SaveUiState(DashboardUiState state)
+    {
+        try
+        {
+            Directory.CreateDirectory(_folder);
+            File.WriteAllText(UiStatePath, JsonSerializer.Serialize(state));
+        }
+        catch (IOException)
+        {
+        }
+    }
+
     private string PositionPath(bool miniMode) =>
         Path.Combine(_folder, miniMode ? "window-position-mini.json" : "window-position.json");
 
     private string ModePath => Path.Combine(_folder, "window-mode.txt");
+
+    private string UiStatePath => Path.Combine(_folder, "dashboard-ui-state.json");
 
     private static bool IsVisible(double left, double top) =>
         left >= SystemParameters.VirtualScreenLeft - 100 &&
@@ -117,3 +158,9 @@ public sealed class WindowPositionStore
 
     private sealed record WindowPosition(double Left, double Top);
 }
+
+public sealed record DashboardUiState(
+    string? Tab = null,
+    string? TrendMetric = null,
+    string? TrendChartStyle = null,
+    string? TrendModelFilter = null);

@@ -39,6 +39,37 @@ public sealed class SettingsAndDataServiceTests : IDisposable
     }
 
     [Fact]
+    public void KeepWindowOnTop_PersistAndNotify()
+    {
+        var service = new AppSettingsService(_folder);
+        AppSettings? notified = null;
+        service.SettingsChanged += settings => notified = settings;
+
+        service.SetKeepWindowOnTop(true);
+        var reloaded = new AppSettingsService(_folder);
+
+        Assert.NotNull(notified);
+        Assert.True(notified.KeepWindowOnTop);
+        Assert.True(reloaded.Settings.KeepWindowOnTop);
+    }
+
+    [Fact]
+    public void DashboardUiState_PersistsAcrossReload()
+    {
+        var store = new WindowPositionStore(_folder);
+        store.SaveUiState(new DashboardUiState("Trend", "Requests", "Area", "gpt-test"));
+
+        var loaded = new WindowPositionStore(_folder).LoadUiState();
+
+        Assert.NotNull(loaded);
+        Assert.Equal("Trend", loaded!.Tab);
+        Assert.Equal("Requests", loaded.TrendMetric);
+        Assert.Equal("Area", loaded.TrendChartStyle);
+        Assert.Equal("gpt-test", loaded.TrendModelFilter);
+        Assert.Null(new WindowPositionStore(Path.Combine(_folder, "missing")).LoadUiState());
+    }
+
+    [Fact]
     public void NewApiSettings_PersistAndNotify()
     {
         var service = new AppSettingsService(_folder);

@@ -61,6 +61,13 @@ public sealed class AppSettingsService
         SettingsChanged?.Invoke(_settings);
     }
 
+    public void SetKeepWindowOnTop(bool enabled)
+    {
+        _settings = _settings with { KeepWindowOnTop = enabled };
+        Save();
+        SettingsChanged?.Invoke(_settings);
+    }
+
     /// <summary>
     /// 读取设置并解密 Token；发现旧版明文字段时标记为需要立即迁移。
     /// </summary>
@@ -81,7 +88,8 @@ public sealed class AppSettingsService
                         stored.RefreshOnlyWhenVisible,
                         stored.NewApiBaseUrl,
                         protectedToken ?? legacyToken,
-                        Math.Max(0, stored.NewApiUserId));
+                        Math.Max(0, stored.NewApiUserId),
+                        stored.KeepWindowOnTop);
                     return (settings, migrateLegacyToken);
                 }
             }
@@ -107,7 +115,8 @@ public sealed class AppSettingsService
                 RefreshOnlyWhenVisible = _settings.RefreshOnlyWhenVisible,
                 NewApiBaseUrl = _settings.NewApiBaseUrl,
                 NewApiAccessTokenProtected = ProtectToken(_settings.NewApiAccessToken),
-                NewApiUserId = _settings.NewApiUserId
+                NewApiUserId = _settings.NewApiUserId,
+                KeepWindowOnTop = _settings.KeepWindowOnTop
             };
             File.WriteAllText(_settingsPath, JsonSerializer.Serialize(stored, JsonOptions));
         }
@@ -163,6 +172,8 @@ public sealed class AppSettingsService
 
         public int NewApiUserId { get; set; }
 
+        public bool KeepWindowOnTop { get; set; }
+
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? NewApiAccessToken { get; set; }
     }
@@ -173,7 +184,8 @@ public sealed record AppSettings(
     bool RefreshOnlyWhenVisible = false,
     string NewApiBaseUrl = "",
     [property: JsonIgnore] string NewApiAccessToken = "",
-    int NewApiUserId = 0)
+    int NewApiUserId = 0,
+    bool KeepWindowOnTop = false)
 {
     public bool IsNewApiConfigured =>
         !string.IsNullOrWhiteSpace(NewApiBaseUrl) &&

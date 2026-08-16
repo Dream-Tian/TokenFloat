@@ -108,18 +108,7 @@ public partial class App : System.Windows.Application
                         Requests = model.Totals.RequestCount,
                         model.Totals.Quota
                     }),
-                MonthModels = snapshot.ModelsFor(UsagePeriod.Month)
-                    .Select(model => new
-                    {
-                        model.Model,
-                        Tokens = model.Totals.TotalTokens,
-                        Requests = model.Totals.RequestCount,
-                        model.Totals.Quota,
-                        Pricing = pricingService.EstimateModel(
-                            snapshot,
-                            model.Model,
-                            UsagePeriod.Month)
-                    })
+                MonthModelPricing = pricingService.EstimateModels(snapshot, UsagePeriod.Month)
             };
             Console.WriteLine(JsonSerializer.Serialize(result));
             Shutdown();

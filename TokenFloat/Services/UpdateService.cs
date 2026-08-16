@@ -24,6 +24,8 @@ public sealed class UpdateService
     };
 
     private readonly string _folder;
+    private UpdateSettings? _settingsCache;
+    private long _settingsStamp;
 
     public UpdateService(string? dataFolder = null)
     {
@@ -255,17 +257,29 @@ public sealed class UpdateService
         return new UpdateSource(null, Path.GetFullPath(value));
     }
 
+    /// <summary>
+    /// 读取更新设置；以文件写入时间为戳做内存缓存，避免每次访问都读盘并反序列化。
+    /// </summary>
     private UpdateSettings LoadSettings()
     {
+        var stamp = File.Exists(SettingsPath) ? File.GetLastWriteTimeUtc(SettingsPath).Ticks : 0;
+        if (_settingsCache is not null && stamp == _settingsStamp)
+        {
+            return _settingsCache;
+        }
+
         try
         {
             if (File.Exists(SettingsPath))
             {
                 var settings = JsonSerializer.Deserialize<UpdateSettings>(File.ReadAllText(SettingsPath), JsonOptions)
                                ?? new UpdateSettings();
-                return string.IsNullOrWhiteSpace(settings.ManifestUrl)
+                settings = string.IsNullOrWhiteSpace(settings.ManifestUrl)
                     ? settings with { ManifestUrl = DefaultManifestUrl }
                     : settings;
+                _settingsCache = settings;
+                _settingsStamp = stamp;
+                return settings;
             }
         }
         catch (Exception exception) when (exception is IOException or JsonException)
@@ -281,6 +295,8 @@ public sealed class UpdateService
         {
             Directory.CreateDirectory(_folder);
             File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, JsonOptions));
+            _settingsCache = settings;
+            _settingsStamp = File.GetLastWriteTimeUtc(SettingsPath).Ticks;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {

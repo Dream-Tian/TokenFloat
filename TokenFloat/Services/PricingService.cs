@@ -23,66 +23,118 @@ public sealed class PricingService
     public PricingEstimate Estimate(UsageSnapshot snapshot, UsageDateRange range) =>
         EstimateEvents(EventsForRange(snapshot, range), snapshot.QuotaPerUnit);
 
-    public PricingEstimate EstimateModel(
+    public IReadOnlyDictionary<string, PricingEstimate> EstimateModels(
         UsageSnapshot snapshot,
-        string provider,
-        string model,
         UsagePeriod period) =>
-        EstimateEvents(EventsForPeriod(snapshot, period).Where(item =>
-            string.Equals(item.Provider, provider, StringComparison.Ordinal) &&
-            string.Equals(ModelName(item.Model), model, StringComparison.Ordinal)), snapshot.QuotaPerUnit);
+        EstimateModels(EventsForPeriod(snapshot, period), snapshot.QuotaPerUnit);
 
-    public PricingEstimate EstimateModel(
+    public IReadOnlyDictionary<string, PricingEstimate> EstimateModels(
         UsageSnapshot snapshot,
-        string provider,
-        string model,
         UsageDateRange range) =>
-        EstimateEvents(EventsForRange(snapshot, range).Where(item =>
-            string.Equals(item.Provider, provider, StringComparison.Ordinal) &&
-            string.Equals(ModelName(item.Model), model, StringComparison.Ordinal)), snapshot.QuotaPerUnit);
+        EstimateModels(EventsForRange(snapshot, range), snapshot.QuotaPerUnit);
 
-    public PricingEstimate EstimateModel(
-        UsageSnapshot snapshot,
-        string model,
-        UsagePeriod period) =>
-        EstimateEvents(EventsForPeriod(snapshot, period).Where(item =>
-            string.Equals(ModelName(item.Model), model, StringComparison.Ordinal)), snapshot.QuotaPerUnit);
-
-    public PricingEstimate EstimateModel(
-        UsageSnapshot snapshot,
-        string model,
-        UsageDateRange range) =>
-        EstimateEvents(EventsForRange(snapshot, range).Where(item =>
-            string.Equals(ModelName(item.Model), model, StringComparison.Ordinal)), snapshot.QuotaPerUnit);
-
-    public PricingTrend Trend(UsageSnapshot snapshot, UsagePeriod period)
+    /// <summary>
+    /// 单次遍历按模型分桶后逐组估算，替代每个模型各自全量扫描事件。
+    /// </summary>
+    private static IReadOnlyDictionary<string, PricingEstimate> EstimateModels(
+        IEnumerable<TokenUsageEvent> events,
+        decimal quotaPerUnit)
     {
-        var tokenTrend = snapshot.TrendFor(period);
-        return BuildTrend(tokenTrend, EventsForPeriod(snapshot, period), snapshot.QuotaPerUnit);
+        var byModel = new Dictionary<string, List<TokenUsageEvent>>(StringComparer.Ordinal);
+        foreach (var item in events)
+        {
+            var key = item.NormalizedModel;
+            if (!byModel.TryGetValue(key, out var bucket))
+            {
+                bucket = [];
+                byModel[key] = bucket;
+            }
+
+            bucket.Add(item);
+        }
+
+        return byModel.ToDictionary(
+            pair => pair.Key,
+            pair => EstimateEvents(pair.Value, quotaPerUnit),
+            StringComparer.Ordinal);
     }
 
-    public PricingTrend Trend(UsageSnapshot snapshot, UsageDateRange range) =>
-        BuildTrend(snapshot.TrendFor(range), EventsForRange(snapshot, range), snapshot.QuotaPerUnit);
+    public PricingTrend Trend(UsageSnapshot snapshot, UsagePeriod period, string? model = null)
+    {
+        var tokenTrend = snapshot.TrendFor(period, model: model);
+        return BuildTrend(tokenTrend, FilterByModel(EventsForPeriod(snapshot, period), model), snapshot.QuotaPerUnit);
+    }
+
+    public PricingTrend Trend(UsageSnapshot snapshot, UsageDateRange range, string? model = null) =>
+        BuildTrend(
+            snapshot.TrendFor(range, model),
+            FilterByModel(EventsForRange(snapshot, range), model),
+            snapshot.QuotaPerUnit);
+
+    private static IEnumerable<TokenUsageEvent> FilterByModel(
+        IEnumerable<TokenUsageEvent> events,
+        string? model) =>
+        model is null
+            ? events
+            : events.Where(item => item.NormalizedModel == model);
 
     private static PricingTrend BuildTrend(
         UsageTrend tokenTrend,
         IEnumerable<TokenUsageEvent> events,
         decimal quotaPerUnit)
     {
-        var source = events.ToArray();
+        var points = tokenTrend.Points;
+        var buckets = BucketEvents(points, events);
         return new PricingTrend(
             tokenTrend.Title,
-            tokenTrend.Points.Select(point =>
+            points.Select((point, index) =>
             {
-                var bucket = source.Where(item =>
-                    item.Timestamp.LocalDateTime >= point.Start &&
-                    item.Timestamp.LocalDateTime < point.EndExclusive).ToArray();
+                var bucket = buckets[index] ?? [];
                 return new PricingTrendPoint(
                     point.Label,
                     point.Tokens,
                     bucket.Sum(EventRequestCount),
                     EstimateEvents(bucket, quotaPerUnit));
             }).ToArray());
+    }
+
+    /// <summary>
+    /// 单次遍历并按趋势点起点二分装入分桶，替代每个趋势点单独扫描全部事件。
+    /// </summary>
+    private static List<TokenUsageEvent>?[] BucketEvents(
+        IReadOnlyList<UsageTrendPoint> points,
+        IEnumerable<TokenUsageEvent> events)
+    {
+        var buckets = new List<TokenUsageEvent>?[points.Count];
+        if (points.Count == 0)
+        {
+            return buckets;
+        }
+
+        var starts = new long[points.Count];
+        for (var index = 0; index < points.Count; index++)
+        {
+            starts[index] = points[index].Start.Ticks;
+        }
+
+        foreach (var item in events)
+        {
+            var timestamp = item.Timestamp.LocalDateTime;
+            var index = Array.BinarySearch(starts, timestamp.Ticks);
+            if (index < 0)
+            {
+                index = ~index - 1;
+            }
+
+            if (index < 0 || timestamp >= points[index].EndExclusive)
+            {
+                continue;
+            }
+
+            (buckets[index] ??= []).Add(item);
+        }
+
+        return buckets;
     }
 
     private static PricingEstimate EstimateEvents(IEnumerable<TokenUsageEvent> events, decimal quotaPerUnit)
@@ -108,7 +160,7 @@ public sealed class PricingService
             if (price is null)
             {
                 unpricedRequests += EventRequestCount(item);
-                unpricedModels.Add($"{item.Provider} / {ModelName(item.Model)}");
+                unpricedModels.Add($"{item.Provider} / {item.NormalizedModel}");
                 continue;
             }
 
@@ -260,9 +312,6 @@ public sealed class PricingService
 
     private static bool Matches(string model, string prefix) =>
         model == prefix || model.StartsWith($"{prefix}-", StringComparison.Ordinal);
-
-    private static string ModelName(string? model) =>
-        string.IsNullOrWhiteSpace(model) ? "未标注模型" : model;
 
     private static string NormalizeModel(string? model) =>
         (model ?? string.Empty)
