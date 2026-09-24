@@ -42,7 +42,8 @@ public sealed record TokenUsageEvent(
     long CacheWriteInputTokens = 0,
     long CacheWriteOneHourInputTokens = 0,
     long Quota = 0,
-    long RequestCount = 1)
+    long RequestCount = 1,
+    long? ReportedInputTokens = null)
 {
     [JsonIgnore]
     public string NormalizedModel => string.IsNullOrWhiteSpace(Model) ? "未标注模型" : Model;
@@ -90,7 +91,11 @@ public sealed record UsageSnapshot(
     IReadOnlyList<ProviderUsage> Providers,
     IReadOnlyList<TokenUsageEvent> Events,
     string? SourceMessage = null,
-    decimal QuotaPerUnit = 500_000m)
+    decimal QuotaPerUnit = 500_000m,
+    AntigravityQuotaSnapshot? AntigravityQuota = null,
+    string? AntigravityStatusMessage = null,
+    string? AntigravityUsageMessage = null,
+    bool? AntigravityUsageIsComplete = null)
 {
     public TokenTotals TotalFor(UsagePeriod period) => Providers
         .Select(provider => provider.For(period))

@@ -15,6 +15,7 @@ namespace TokenFloat.Services;
 public sealed class UsageLogService
 {
     private const int CacheVersion = 7;
+    private const int AntigravityCacheVersion = 1;
     private const int ConsumeLogType = 2;
     private const string ProviderName = "NewAPI";
     private const decimal DefaultQuotaPerUnit = 500_000m;
@@ -33,43 +34,63 @@ public sealed class UsageLogService
 
     private readonly AppSettingsService _settingsService;
     private readonly HttpClient _httpClient;
+    private readonly AntigravityQuotaService _antigravityQuotaService;
+    private readonly AntigravityUsageService _antigravityUsageService;
     private readonly string _cachePath;
+    private readonly string _antigravityCachePath;
     private PersistentCache? _cache;
+    private AntigravityPersistentCache? _antigravityCache;
 
     public UsageLogService(
         AppSettingsService? settingsService = null,
         HttpClient? httpClient = null,
-        string? cacheFolder = null)
+        string? cacheFolder = null,
+        AntigravityQuotaService? antigravityQuotaService = null,
+        AntigravityUsageService? antigravityUsageService = null)
     {
         _settingsService = settingsService ?? new AppSettingsService();
         _httpClient = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        _antigravityQuotaService = antigravityQuotaService ?? new AntigravityQuotaService();
+        _antigravityUsageService = antigravityUsageService ?? new AntigravityUsageService(_antigravityQuotaService.Client);
         _cachePath = Path.Combine(
             cacheFolder ?? Path.Combine(
                 ResolveFolder("LOCALAPPDATA", Environment.SpecialFolder.LocalApplicationData),
                 "TokenFloat"),
             $"usage-index-v{CacheVersion}.json.gz");
+        _antigravityCachePath = Path.Combine(Path.GetDirectoryName(_cachePath)!, $"antigravity-usage-v{AntigravityCacheVersion}.json.gz");
         LoadPersistentCache();
+        LoadAntigravityCache();
     }
 
     /// <summary>
-    /// 返回上次从 NewAPI 拉取并压缩保存的事件，按当前日期边界重新聚合，避免跨天后沿用旧口径。
+    /// 按启用来源读取各自缓存并重新聚合日期边界，Antigravity 旧记录明确标为本机缓存。
     /// </summary>
     public UsageSnapshot? GetCachedSnapshot()
     {
         var settings = _settingsService.Settings;
-        if (_cache is null || _cache.SourceKey != BuildSourceKey(settings))
+        var newApiCache = IsCurrentCache(settings) ? _cache : null;
+        var antigravityCache = settings.AntigravityUsageEnabled ? _antigravityCache : null;
+        if (newApiCache is null && antigravityCache is null)
         {
             return null;
         }
 
-        return BuildSnapshot(_cache.Events, _cache.SourceMessage, _cache.QuotaPerUnit);
+        var antigravityMessage = antigravityCache is null ? null : FormatAntigravityCacheMessage(antigravityCache);
+        var messages = new[] { newApiCache?.SourceMessage, antigravityMessage }
+            .Where(message => !string.IsNullOrWhiteSpace(message));
+        return BuildSnapshot(
+            (newApiCache?.Events ?? []).Concat(antigravityCache?.Events ?? []),
+            string.Join(" | ", messages),
+            newApiCache?.QuotaPerUnit ?? DefaultQuotaPerUnit,
+            antigravityUsageMessage: antigravityMessage,
+            antigravityUsageIsComplete: antigravityCache is null ? null : false);
     }
 
     /// <summary>
-    /// 从 NewAPI 读取个人消费汇总，并生成当前用量快照。
+    /// 从已启用的 NewAPI 和 Antigravity 来源读取记录，并生成当前用量快照。
     /// </summary>
     public Task<UsageSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) =>
-        LoadSnapshotAsync(null, cancellationToken);
+        LoadSnapshotCoreAsync(null, cancellationToken);
 
     /// <summary>
     /// 自定义范围需要更早数据时，向 NewAPI 请求从指定日期开始的小时级汇总。
@@ -77,7 +98,7 @@ public sealed class UsageLogService
     public Task<UsageSnapshot> LoadSnapshotAsync(
         DateTime requestedHistoryStart,
         CancellationToken cancellationToken = default) =>
-        LoadSnapshotAsync(requestedHistoryStart.Date, cancellationToken);
+        LoadSnapshotCoreAsync(requestedHistoryStart.Date, cancellationToken);
 
     /// <summary>
     /// 只请求 NewAPI 状态接口验证地址和认证信息，并返回结果与请求耗时。
@@ -86,12 +107,19 @@ public sealed class UsageLogService
         TestConnectionAsync(_settingsService.Settings, cancellationToken);
 
     /// <summary>
+    /// 直接测试 Antigravity 本地配额接口，供设置页诊断连接而不改变来源开关。
+    /// </summary>
+    public Task<AntigravityQuotaReadResult> TestAntigravityConnectionAsync(CancellationToken cancellationToken = default) =>
+        _antigravityQuotaService.ReadAsync(cancellationToken);
+
+    /// <summary>
     /// 使用指定配置测试 NewAPI，便于设置页在保存前验证输入内容。
     /// </summary>
     public async Task<NewApiConnectionResult> TestConnectionAsync(
         AppSettings settings,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var stopwatch = Stopwatch.StartNew();
         if (!settings.IsNewApiConfigured)
         {
@@ -103,6 +131,7 @@ public sealed class UsageLogService
             using var request = new HttpRequestMessage(HttpMethod.Get, BuildUri(settings, "api/status"));
             ApplyAuth(request, settings);
             using var response = await _httpClient.SendAsync(request, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             if (!response.IsSuccessStatusCode)
             {
                 return new NewApiConnectionResult(
@@ -113,7 +142,8 @@ public sealed class UsageLogService
 
             return new NewApiConnectionResult(true, "连接成功", stopwatch.Elapsed);
         }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or UriFormatException or FormatException)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested &&
+            exception is HttpRequestException or TaskCanceledException or UriFormatException or FormatException)
         {
             var message = exception is TaskCanceledException
                 ? "请求超时"
@@ -123,11 +153,13 @@ public sealed class UsageLogService
     }
 
     /// <summary>
-    /// 清空本地压缩缓存；下一次刷新会重新从 NewAPI 拉取汇总。
+    /// 清空本地压缩缓存；下一次刷新会重新读取已启用的数据来源。
     /// </summary>
     public void ClearCache()
     {
         _cache = null;
+        _antigravityCache = null;
+        _antigravityUsageService.ClearCache();
         var folder = Path.GetDirectoryName(_cachePath)!;
         if (!Directory.Exists(folder))
         {
@@ -138,51 +170,125 @@ public sealed class UsageLogService
         {
             File.Delete(path);
         }
+
+        if (File.Exists(_antigravityCachePath))
+        {
+            File.Delete(_antigravityCachePath);
+        }
     }
 
-    private async Task<UsageSnapshot> LoadSnapshotAsync(
+    /// <summary>
+    /// 分别读取消费和配额，只在 NewAPI 完整成功后推进历史缓存，失败时保留记录与费率。
+    /// </summary>
+    private async Task<UsageSnapshot> LoadSnapshotCoreAsync(
         DateTime? requestedHistoryStart,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var settings = _settingsService.Settings;
-        if (!settings.IsNewApiConfigured)
+        if (!settings.HasUsageSource)
         {
-            return BuildSnapshot([], "请在设置中填写 NewAPI 地址和系统 Token", DefaultQuotaPerUnit);
+            return BuildSnapshot([], "请在设置中配置至少一个用量来源", DefaultQuotaPerUnit);
         }
 
-        try
+        var now = DateTime.Now;
+        var monthStart = new DateTime(now.Year, now.Month, 1);
+        var defaultHistoryStart = monthStart.AddMonths(-1);
+        var useIncremental = settings.IsNewApiConfigured && requestedHistoryStart is null && CanUseIncrementalCache(settings);
+        var historyStart = useIncremental
+            ? GetIncrementalHistoryStart(now, defaultHistoryStart)
+            : requestedHistoryStart is not null && requestedHistoryStart.Value < defaultHistoryStart
+                ? requestedHistoryStart.Value
+                : defaultHistoryStart;
+        var currentCache = IsCurrentCache(settings) ? _cache : null;
+        var cachedEvents = currentCache?.Events ?? [];
+        var events = new List<TokenUsageEvent>();
+        var messages = new List<string>();
+        var quotaPerUnit = currentCache?.QuotaPerUnit ?? DefaultQuotaPerUnit;
+        AntigravityQuotaSnapshot? antigravityQuota = null;
+        string? antigravityStatusMessage = null;
+        string? antigravityUsageMessage = null;
+        bool? antigravityUsageIsComplete = null;
+        Exception? newApiError = null;
+
+        if (settings.IsNewApiConfigured)
         {
-            var now = DateTime.Now;
-            var monthStart = new DateTime(now.Year, now.Month, 1);
-            var defaultHistoryStart = monthStart.AddMonths(-1);
-            var useIncremental = requestedHistoryStart is null && CanUseIncrementalCache(settings);
-            var historyStart = useIncremental
-                ? GetIncrementalHistoryStart(now, defaultHistoryStart)
-                : requestedHistoryStart is not null && requestedHistoryStart.Value < defaultHistoryStart
-                    ? requestedHistoryStart.Value
-                    : defaultHistoryStart;
-            var quotaPerUnit = await FetchQuotaPerUnitAsync(settings, cancellationToken);
-            var rows = await FetchQuotaDataAsync(settings, historyStart, now, cancellationToken);
-            var fetchedEvents = rows.Select(ToEvent).ToArray();
-            var events = useIncremental && _cache is not null
-                ? MergeEvents(_cache.Events, fetchedEvents)
-                : fetchedEvents;
-            var message = $"NewAPI · {NormalizeBaseUrl(settings.NewApiBaseUrl)} · {now:HH:mm:ss}";
-            var snapshot = BuildSnapshot(events, message, quotaPerUnit);
-            SavePersistentCache(settings, snapshot.Events, message, quotaPerUnit, DateTimeOffset.UtcNow);
-            return snapshot;
-        }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException or UriFormatException or FormatException)
-        {
-            var message = $"读取 NewAPI 失败：{exception.Message}";
-            if (GetCachedSnapshot() is { } cached)
+            try
             {
-                return cached with { SourceMessage = message };
+                var fetchedQuotaPerUnit = await FetchQuotaPerUnitAsync(settings, quotaPerUnit, cancellationToken);
+                var rows = await FetchQuotaDataAsync(settings, historyStart, now, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                var fetchedEvents = rows.Select(ToEvent).ToArray();
+                events.AddRange(useIncremental
+                    ? MergeEvents(cachedEvents.Where(item => item.Provider == ProviderName), fetchedEvents)
+                    : fetchedEvents);
+                quotaPerUnit = fetchedQuotaPerUnit;
+                var sourceMessage = $"NewAPI · {NormalizeBaseUrl(settings.NewApiBaseUrl)} · {now:HH:mm:ss}";
+                messages.Add(sourceMessage);
+                SavePersistentCache(settings, events, sourceMessage, quotaPerUnit, DateTimeOffset.UtcNow);
+            }
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested &&
+                exception is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException or UriFormatException or FormatException)
+            {
+                newApiError = exception;
+                events.AddRange(cachedEvents.Where(item => item.Provider == ProviderName));
+            }
+        }
+
+        if (settings.AntigravityUsageEnabled)
+        {
+            var usageResult = await _antigravityUsageService.ReadAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (usageResult.IsComplete)
+            {
+                SaveAntigravityCache(usageResult.Events, DateTimeOffset.UtcNow);
+            }
+            else if (usageResult.IsUnavailable && _antigravityCache is not null)
+            {
+                usageResult = usageResult with
+                {
+                    Events = _antigravityCache.Events,
+                    Message = $"{usageResult.Message}；{FormatAntigravityCacheMessage(_antigravityCache)}"
+                };
             }
 
-            return BuildSnapshot([], message, DefaultQuotaPerUnit);
+            events.AddRange(usageResult.Events);
+            antigravityUsageMessage = usageResult.Message;
+            antigravityUsageIsComplete = usageResult.IsComplete;
+            messages.Add($"Antigravity Token：{antigravityUsageMessage}");
+
+            var quotaResult = await _antigravityQuotaService.ReadAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            antigravityQuota = quotaResult.Snapshot;
+            antigravityStatusMessage = quotaResult.Message;
+            if (antigravityQuota is not null)
+            {
+                messages.Add($"当前配额 {FormatAntigravityQuota(antigravityQuota)}");
+            }
+            else
+            {
+                messages.Add($"配额：{quotaResult.Message}");
+            }
         }
+
+        if (newApiError is not null)
+        {
+            messages.Add($"读取 NewAPI 失败：{newApiError.Message}");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return BuildSnapshot(
+            events,
+            string.Join(" | ", messages),
+            quotaPerUnit,
+            antigravityQuota,
+            antigravityStatusMessage,
+            antigravityUsageMessage,
+            antigravityUsageIsComplete);
     }
+
+    private bool IsCurrentCache(AppSettings settings) =>
+        settings.IsNewApiConfigured && _cache is not null && _cache.SourceKey == BuildSourceKey(settings);
 
     private bool CanUseIncrementalCache(AppSettings settings)
     {
@@ -215,7 +321,11 @@ public sealed class UsageLogService
     internal static UsageSnapshot BuildSnapshot(
         IEnumerable<TokenUsageEvent> source,
         string? sourceMessage = null,
-        decimal quotaPerUnit = DefaultQuotaPerUnit)
+        decimal quotaPerUnit = DefaultQuotaPerUnit,
+        AntigravityQuotaSnapshot? antigravityQuota = null,
+        string? antigravityStatusMessage = null,
+        string? antigravityUsageMessage = null,
+        bool? antigravityUsageIsComplete = null)
     {
         var uniqueEvents = source
             .GroupBy(item => item.Id, StringComparer.Ordinal)
@@ -238,10 +348,35 @@ public sealed class UsageLogService
                 monthStart))
             .ToArray();
 
-        return new UsageSnapshot(DateTime.Now, providers, uniqueEvents, sourceMessage, quotaPerUnit);
+        return new UsageSnapshot(
+            DateTime.Now,
+            providers,
+            uniqueEvents,
+            sourceMessage,
+            quotaPerUnit,
+            antigravityQuota,
+            antigravityStatusMessage,
+            antigravityUsageMessage,
+            antigravityUsageIsComplete);
     }
 
-    private async Task<decimal> FetchQuotaPerUnitAsync(AppSettings settings, CancellationToken cancellationToken)
+    private static string FormatAntigravityQuota(AntigravityQuotaSnapshot snapshot)
+    {
+        var models = snapshot.Models
+            .Select(item => (item, Remaining: item.RemainingFraction))
+            .Where(item => item.Remaining is not null)
+            .Take(3)
+            .Select(item => $"{item.item.Label ?? item.item.Model} {item.Remaining!.Value:P0}");
+        return string.Join("、", models);
+    }
+
+    /// <summary>
+    /// 从状态接口读取消费换算单位，接口暂不可用时沿用同一账户最近成功的费率。
+    /// </summary>
+    private async Task<decimal> FetchQuotaPerUnitAsync(
+        AppSettings settings,
+        decimal fallbackQuotaPerUnit,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -250,7 +385,7 @@ public sealed class UsageLogService
             using var response = await _httpClient.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                return DefaultQuotaPerUnit;
+                return fallbackQuotaPerUnit;
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -263,11 +398,12 @@ public sealed class UsageLogService
                 return quotaPerUnit;
             }
         }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested &&
+            exception is HttpRequestException or TaskCanceledException or JsonException)
         {
         }
 
-        return DefaultQuotaPerUnit;
+        return fallbackQuotaPerUnit;
     }
 
     private async Task<IReadOnlyList<NewApiQuotaData>> FetchQuotaDataAsync(
@@ -414,6 +550,9 @@ public sealed class UsageLogService
 
     private static string NormalizeBaseUrl(string value) => value.Trim().TrimEnd('/') + "/";
 
+    /// <summary>
+    /// 仅用 NewAPI 地址和认证信息标识消费缓存，Antigravity 开关不影响历史记录。
+    /// </summary>
     private static string BuildSourceKey(AppSettings settings)
     {
         if (!settings.IsNewApiConfigured)
@@ -486,6 +625,63 @@ public sealed class UsageLogService
         }
     }
 
+    /// <summary>
+    /// 只恢复本程序保存的完整 Antigravity 会话快照，供 IDE 离线时明确展示旧记录。
+    /// </summary>
+    private void LoadAntigravityCache()
+    {
+        try
+        {
+            if (!File.Exists(_antigravityCachePath))
+            {
+                return;
+            }
+
+            using var file = File.OpenRead(_antigravityCachePath);
+            using var gzip = new GZipStream(file, CompressionMode.Decompress);
+            var stored = JsonSerializer.Deserialize<AntigravityPersistentCache>(gzip, CacheJsonOptions);
+            if (stored?.Version == AntigravityCacheVersion)
+            {
+                _antigravityCache = stored;
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
+        {
+            _antigravityCache = null;
+        }
+    }
+
+    /// <summary>
+    /// 完整扫描后替换 Antigravity 独立缓存，不把来源身份未知的两次会话集合混合。
+    /// </summary>
+    private void SaveAntigravityCache(IReadOnlyList<TokenUsageEvent> events, DateTimeOffset fetchedUtc)
+    {
+        _antigravityCache = new AntigravityPersistentCache
+        {
+            Version = AntigravityCacheVersion,
+            LastFetchedUtc = fetchedUtc,
+            Events = MergeEvents([], events).ToList()
+        };
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_antigravityCachePath)!);
+            var temporaryPath = _antigravityCachePath + ".tmp";
+            using (var file = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var gzip = new GZipStream(file, CompressionLevel.Fastest))
+            {
+                JsonSerializer.Serialize(gzip, _antigravityCache, CacheJsonOptions);
+            }
+
+            File.Move(temporaryPath, _antigravityCachePath, true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static string FormatAntigravityCacheMessage(AntigravityPersistentCache cache) =>
+        $"显示本机历史缓存（最近完整读取：{cache.LastFetchedUtc.LocalDateTime:yyyy-MM-dd HH:mm}）";
+
     private static string ResolveFolder(string environmentName, Environment.SpecialFolder fallback)
     {
         var environmentPath = Environment.GetEnvironmentVariable(environmentName);
@@ -536,6 +732,15 @@ public sealed class UsageLogService
         public decimal QuotaPerUnit { get; set; } = DefaultQuotaPerUnit;
 
         public DateTimeOffset? LastFetchedUtc { get; set; }
+
+        public List<TokenUsageEvent> Events { get; set; } = [];
+    }
+
+    private sealed class AntigravityPersistentCache
+    {
+        public int Version { get; set; }
+
+        public DateTimeOffset LastFetchedUtc { get; set; }
 
         public List<TokenUsageEvent> Events { get; set; } = [];
     }

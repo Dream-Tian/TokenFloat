@@ -24,10 +24,10 @@ namespace TokenFloat;
 
 public partial class MainWindow : Window
 {
-    private const double NormalWidth = 500;
-    private const double NormalHeight = 305;
-    private const double MiniWidth = 286;
-    private const double MiniHeight = 78;
+    private const double NormalWidth = 516;
+    private const double NormalHeight = 328;
+    private const double MiniWidth = 304;
+    private const double MiniHeight = 96;
     private const double TrendPlotLeft = 54;
     private const double TrendPlotTop = 14;
     private const double TrendPlotRight = 16;
@@ -43,6 +43,8 @@ public partial class MainWindow : Window
     private UsagePeriod _period = UsagePeriod.Today;
     private UsageDateRange? _customRange;
     private bool _isRefreshing;
+    private bool _refreshQueued;
+    private bool _clearCacheQueued;
     private IReadOnlyList<PricingTrendPoint> _trendPoints = [];
     private TrendMetric _trendMetric = TrendMetric.Cost;
     private TrendChartStyle _trendChartStyle = TrendChartStyle.Bars;
@@ -125,9 +127,9 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 后台从 NewAPI 拉取消费日志，并复用最近一次压缩缓存做启动展示。
+    /// 刷新已启用的来源；来源切换时排队重读，避免旧请求覆盖新设置。
     /// </summary>
-    private async Task<bool> RefreshAsync()
+    private async Task<bool> RefreshAsync(bool clearCache = false)
     {
         if (_isRefreshing)
         {
@@ -138,13 +140,22 @@ public partial class MainWindow : Window
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            _snapshot = _customRange is null
+            if (clearCache)
+            {
+                _usageLogService.ClearCache();
+            }
+
+            var snapshot = _customRange is null
                 ? await _usageLogService.LoadSnapshotAsync()
                 : await _usageLogService.LoadSnapshotAsync(_customRange.Start);
-            RenderSnapshot();
+            if (!_refreshQueued)
+            {
+                _snapshot = snapshot;
+                RenderSnapshot();
+            }
             return true;
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (!clearCache && (exception is IOException or UnauthorizedAccessException))
         {
             return false;
         }
@@ -154,37 +165,43 @@ public partial class MainWindow : Window
             _isRefreshing = false;
             LastRefreshDuration = stopwatch.Elapsed;
             RefreshCompleted?.Invoke(stopwatch.Elapsed);
+            if (_refreshQueued)
+            {
+                var clearQueued = _clearCacheQueued;
+                _refreshQueued = false;
+                _clearCacheQueued = false;
+                _ = RefreshAsync(clearQueued);
+            }
         }
     }
 
     /// <summary>
-    /// 删除本地统计缓存后立即从 NewAPI 重拉；刷新进行中时拒绝重复清理。
+    /// 保存来源后请求刷新；已有任务时只排队一次，保留其他来源的历史缓存。
     /// </summary>
-    public async Task<bool> ClearUsageCacheAsync()
+    public Task<bool> RefreshUsageAsync()
     {
         if (_isRefreshing)
         {
-            return false;
+            _refreshQueued = true;
+            return Task.FromResult(false);
         }
 
-        _isRefreshing = true;
-        var stopwatch = Stopwatch.StartNew();
-        try
+        return RefreshAsync();
+    }
+
+    /// <summary>
+    /// 清除两种来源的统计缓存并重建；正在刷新时延后清理，避免并发写入。
+    /// </summary>
+    public Task<bool> ClearUsageCacheAsync()
+    {
+        if (_isRefreshing)
         {
-            _usageLogService.ClearCache();
-            _snapshot = _customRange is null
-                ? await _usageLogService.LoadSnapshotAsync()
-                : await _usageLogService.LoadSnapshotAsync(_customRange.Start);
-            RenderSnapshot();
-            return true;
+            _refreshQueued = true;
+            _clearCacheQueued = true;
+            return Task.FromResult(false);
         }
-        finally
-        {
-            stopwatch.Stop();
-            _isRefreshing = false;
-            LastRefreshDuration = stopwatch.Elapsed;
-            RefreshCompleted?.Invoke(stopwatch.Elapsed);
-        }
+
+        return RefreshAsync(clearCache: true);
     }
 
     /// <summary>
@@ -237,22 +254,48 @@ public partial class MainWindow : Window
         TotalTokensText.Text = FormatTokens(total.TotalTokens);
         PrimaryUnitText.Text = " Token";
         var rates = ActiveRates();
-        var hourRates = _snapshot.CurrentHourRatesFor();
         RequestCountText.Text = FormatCount(rates.RequestCount);
-        AverageRpmText.Text = FormatRate(hourRates.AverageRpm);
-        AverageTpmText.Text = FormatRate(hourRates.AverageTpm);
-        RpmCard.ToolTip = $"本小时 RPM {FormatRate(hourRates.AverageRpm)} · 周期平均 {FormatRate(rates.AverageRpm)}";
-        TpmCard.ToolTip = $"本小时 TPM {FormatRate(hourRates.AverageTpm)} · 周期平均 {FormatRate(rates.AverageTpm)}";
+        AverageRpmText.Text = FormatRate(rates.AverageRpm);
+        AverageTpmText.Text = FormatRate(rates.AverageTpm);
+        RpmCard.ToolTip = $"所选时段共 {rates.RequestCount:N0} 次请求，平均每分钟 {FormatRate(rates.AverageRpm)} 次";
+        TpmCard.ToolTip = $"所选时段共 {total.TotalTokens:N0} Token，平均每分钟 {FormatRate(rates.AverageTpm)}";
         EstimatedCostText.Text = FormatCost(pricing);
         EstimatedCostText.ToolTip = BuildCostTooltip(pricing);
+        SourceStatusText.Text = BuildSourceStatus();
+        SourceStatusText.ToolTip = BuildSourceTooltip(_snapshot);
+        var usageLimited = _appSettingsService.Settings.AntigravityUsageEnabled &&
+            _snapshot.AntigravityUsageIsComplete != true;
+        var usageUnavailable = IsUsageUnavailable(total);
+        TokenCoverageText.Text = usageLimited ? "已读取 · 见提示" : "统计 Token 数";
+        TokenCoverageText.ToolTip = _snapshot.AntigravityUsageMessage;
+        TotalTokensText.ToolTip = JoinTooltip(
+            $"输入 {total.InputTokens:N0}（含缓存读取 {total.CachedInputTokens:N0}） · 输出 {total.OutputTokens:N0}",
+            _snapshot.AntigravityUsageMessage ?? string.Empty);
+        if (usageUnavailable)
+        {
+            TotalTokensText.Text = "--";
+            RequestCountText.Text = "--";
+            AverageRpmText.Text = "--";
+            AverageTpmText.Text = "--";
+            EstimatedCostText.Text = "未计价";
+        }
+
         var today = _snapshot.TotalFor(UsagePeriod.Today);
         var todayPricing = _pricingService.Estimate(_snapshot, UsagePeriod.Today);
-        MiniTokensText.Text = FormatTokens(today.TotalTokens);
-        MiniCostText.Text = FormatCost(todayPricing);
+        var todayUnavailable = IsUsageUnavailable(today);
+        MiniTokensText.Text = todayUnavailable ? "--" : FormatTokens(today.TotalTokens);
+        MiniTokensText.ToolTip = JoinTooltip(
+            $"今日输入 {today.InputTokens:N0}（含缓存读取 {today.CachedInputTokens:N0}） · 输出 {today.OutputTokens:N0}",
+            _snapshot.AntigravityUsageMessage ?? string.Empty);
+        MiniCostText.Text = todayUnavailable ? "未计价" : FormatCost(todayPricing);
         MiniCostText.ToolTip = BuildCostTooltip(todayPricing);
-        UpdateMiniTokenIncrease(today.TotalTokens);
+        if (!todayUnavailable)
+        {
+            UpdateMiniTokenIncrease(today.TotalTokens);
+        }
         DrawUsageTrend();
         RenderModelPage();
+        RenderQuotaPage();
         TraySummaryChanged?.Invoke(BuildTraySummary());
     }
 
@@ -283,9 +326,11 @@ public partial class MainWindow : Window
         SetSegmentButtonState(OverviewTabButton, _normalTab == NormalTab.Overview);
         SetSegmentButtonState(TrendTabButton, _normalTab == NormalTab.Trend);
         SetSegmentButtonState(ModelTabButton, _normalTab == NormalTab.Model);
+        SetSegmentButtonState(QuotaTabButton, _normalTab == NormalTab.Quota);
         OverviewPage.Visibility = _normalTab == NormalTab.Overview ? Visibility.Visible : Visibility.Collapsed;
         TrendPage.Visibility = _normalTab == NormalTab.Trend ? Visibility.Visible : Visibility.Collapsed;
         ModelPage.Visibility = _normalTab == NormalTab.Model ? Visibility.Visible : Visibility.Collapsed;
+        QuotaPage.Visibility = _normalTab == NormalTab.Quota ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void RenderModelPage()
@@ -302,7 +347,9 @@ public partial class MainWindow : Window
             .OrderByDescending(item => item.Model.Totals.TotalTokens)
             .ToArray();
         ModelPageTitle.Text = $"模型用量 · {PeriodShortText()}";
-        ModelPageSummary.Text = $"{ranking.Length} 个模型 · {FormatCost(periodPricing)}";
+        var unavailable = IsUsageUnavailable(ActiveTotal());
+        ModelPageSummary.Text = unavailable ? "用量未提供" : $"{ranking.Length} 个模型 · {FormatCost(periodPricing)}";
+        ModelPageSummary.ToolTip = _snapshot.AntigravityUsageMessage;
         ModelPagePanel.Children.Clear();
         for (var index = 0; index < ranking.Length; index++)
         {
@@ -313,7 +360,8 @@ public partial class MainWindow : Window
         {
             ModelPagePanel.Children.Add(new TextBlock
             {
-                Text = "当前范围暂无模型记录",
+                Text = unavailable ? "当前范围的 Token 数据尚不可用，详见顶部来源提示。" : "当前范围暂无模型记录",
+                TextWrapping = TextWrapping.Wrap,
                 FontFamily = (FontFamily)FindResource("DashboardFont"),
                 FontSize = 11,
                 Foreground = (Brush)FindResource("DashboardMuted"),
@@ -322,8 +370,132 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// 独立展示当前模型配额及重置时间，保留未知值，不从比例推算 Token。
+    /// </summary>
+    private void RenderQuotaPage()
+    {
+        QuotaModelsPanel.Children.Clear();
+        QuotaUpdatedText.Text = string.Empty;
+        if (!_appSettingsService.Settings.AntigravityUsageEnabled)
+        {
+            QuotaStatusText.Text = "在设置中启用本地 Antigravity，即可读取模型用量和当前配额。";
+            return;
+        }
+
+        if (_snapshot?.AntigravityQuota is not { } quota)
+        {
+            QuotaStatusText.Text = _snapshot?.AntigravityStatusMessage ?? "等待读取 Antigravity，请保持 IDE 运行并登录。";
+            return;
+        }
+
+        QuotaUpdatedText.Text = $"{quota.RetrievedAt.LocalDateTime:HH:mm:ss} 更新";
+        var details = new List<string>();
+        if (!string.IsNullOrWhiteSpace(quota.PlanName))
+        {
+            details.Add(quota.PlanName);
+        }
+
+        if (quota.AvailablePromptCredits is { } credits)
+        {
+            details.Add(quota.MonthlyPromptCredits is { } monthly
+                ? $"积分剩余 {credits:N0} / {monthly:N0}"
+                : $"积分剩余 {credits:N0}");
+        }
+
+        details.Add(quota.Models.Count == 0 ? "未返回模型配额" : "模型剩余比例 · 本地重置时间");
+        QuotaStatusText.Text = string.Join(" · ", details);
+        foreach (var model in quota.Models)
+        {
+            QuotaModelsPanel.Children.Add(CreateQuotaRow(model));
+        }
+    }
+
+    /// <summary>
+    /// 用剩余比例绘制配额条，同时显示完整模型名和本地重置时间。
+    /// </summary>
+    private FrameworkElement CreateQuotaRow(AntigravityModelQuota model)
+    {
+        var row = new Grid { Margin = new Thickness(0, 1, 0, 4) };
+        row.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        row.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        row.RowDefinitions.Add(new RowDefinition { Height = new GridLength(4) });
+        row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var label = string.IsNullOrWhiteSpace(model.Label) ? model.Model : model.Label;
+        var remaining = model.RemainingFraction is { } fraction ? Math.Clamp(fraction, 0m, 1m) : (decimal?)null;
+        row.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontSize = 11,
+            Foreground = (Brush)FindResource("DashboardText"),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            ToolTip = $"{label}\n{model.Model}",
+            Margin = new Thickness(0, 0, 10, 0)
+        });
+        var percentage = new TextBlock
+        {
+            Text = remaining is { } value ? $"{value:P0}" : "未知",
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource(remaining is <= 0.2m ? "DashboardOrange" : "DashboardGreen")
+        };
+        Grid.SetColumn(percentage, 1);
+        row.Children.Add(percentage);
+        var reset = new TextBlock
+        {
+            Text = FormatQuotaReset(model.ResetAt),
+            FontSize = 9,
+            Foreground = (Brush)FindResource("DashboardMuted"),
+            Margin = new Thickness(0, 2, 0, 4)
+        };
+        Grid.SetRow(reset, 1);
+        Grid.SetColumnSpan(reset, 2);
+        row.Children.Add(reset);
+        var track = new Grid { Height = 6 };
+        track.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength((double)(remaining ?? 0m), GridUnitType.Star) });
+        track.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength((double)(1m - (remaining ?? 0m)), GridUnitType.Star) });
+        track.Children.Add(new Border
+        {
+            Background = percentage.Foreground,
+            CornerRadius = new CornerRadius(3)
+        });
+        var trackShell = new Border
+        {
+            Height = 6,
+            CornerRadius = new CornerRadius(3),
+            Background = (Brush)FindResource("DashboardTrack"),
+            ClipToBounds = true,
+            Child = track
+        };
+        Grid.SetRow(trackShell, 2);
+        Grid.SetColumnSpan(trackShell, 2);
+        row.Children.Add(trackShell);
+        return row;
+    }
+
+    private static string FormatQuotaReset(DateTimeOffset? resetAt)
+    {
+        if (resetAt is null)
+        {
+            return "重置时间未提供";
+        }
+
+        var remaining = resetAt.Value - DateTimeOffset.Now;
+        var countdown = remaining <= TimeSpan.Zero ? "等待刷新" : remaining.TotalHours >= 24
+            ? $"约 {remaining.TotalDays:0.#} 天后"
+            : remaining.TotalHours >= 1 ? $"约 {remaining.TotalHours:0.#} 小时后" : $"约 {Math.Ceiling(remaining.TotalMinutes):0} 分钟后";
+        return $"{resetAt.Value.LocalDateTime:MM-dd HH:mm} 重置 · {countdown}";
+    }
+
     private TokenTotals ActiveTotal() =>
         _customRange is null ? _snapshot!.TotalFor(_period) : _snapshot!.TotalFor(_customRange);
+
+    private bool IsUsageUnavailable(TokenTotals totals) =>
+        _appSettingsService.Settings.AntigravityUsageEnabled &&
+        !_appSettingsService.Settings.IsNewApiConfigured &&
+        _snapshot?.AntigravityUsageIsComplete != true &&
+        totals.RequestCount == 0 && totals.TotalTokens == 0;
 
     private UsageRates ActiveRates() =>
         _customRange is null ? _snapshot!.RatesFor(_period) : _snapshot!.RatesFor(_customRange);
@@ -336,6 +508,11 @@ public partial class MainWindow : Window
     private string BuildTraySummary()
     {
         var total = _snapshot!.TotalFor(UsagePeriod.Today);
+        if (IsUsageUnavailable(total))
+        {
+            return "Antigravity Token 暂不可用，打开面板查看状态";
+        }
+
         var rates = _snapshot.RatesFor(UsagePeriod.Today);
         var pricing = _pricingService.Estimate(_snapshot, UsagePeriod.Today);
         if (total.TotalTokens == 0 && total.Quota > 0)
@@ -363,12 +540,20 @@ public partial class MainWindow : Window
         _trendPoints = trend.Points;
         _trendMaximum = maximum;
         TrendTitleText.Text = trend.Title;
-        TrendTotalText.Text = _trendMetric switch
+        var trendPricing = new PricingEstimate(
+            trend.Points.Sum(point => point.Pricing.EstimatedUsd),
+            trend.Points.Sum(point => point.Pricing.PricedRequestCount),
+            trend.Points.Sum(point => point.Pricing.UnpricedRequestCount),
+            trend.Points.SelectMany(point => point.Pricing.UnpricedModels).Distinct(StringComparer.Ordinal).ToArray());
+        var usageUnavailable = IsUsageUnavailable(ActiveTotal());
+        var costUnavailable = _trendMetric == TrendMetric.Cost && !trendPricing.HasPricedUsage && !trendPricing.IsComplete;
+        TrendTotalText.Text = usageUnavailable ? "用量未提供" : _trendMetric switch
         {
             TrendMetric.Tokens => $"总计 {FormatTokens(trend.Points.Sum(point => point.Tokens))}",
             TrendMetric.Requests => $"总计 {FormatCount(trend.Points.Sum(point => point.RequestCount))}",
-            _ => $"总计 {FormatUsd(trend.Points.Sum(point => point.Pricing.EstimatedUsd))}"
+            _ => $"总计 {FormatCost(trendPricing)}"
         };
+        TrendTotalText.ToolTip = _trendMetric == TrendMetric.Cost ? BuildCostTooltip(trendPricing) : _snapshot.AntigravityUsageMessage;
         RestoreTrendPeakText();
         TrendHoverCanvas.Visibility = Visibility.Collapsed;
         UsageTrendCanvas.Children.Clear();
@@ -389,13 +574,13 @@ public partial class MainWindow : Window
                 Y1 = y,
                 X2 = TrendPlotLeft + plotWidth,
                 Y2 = y,
-                Stroke = new SolidColorBrush(Color.FromRgb(235, 238, 233)),
+                Stroke = new SolidColorBrush(Color.FromRgb(228, 222, 212)),
                 StrokeThickness = 1
             });
 
             var axisLabel = new TextBlock
             {
-                Text = FormatTrendAxisValue(maximum * (1 - ratio)),
+                Text = usageUnavailable || costUnavailable ? "—" : FormatTrendAxisValue(maximum * (1 - ratio)),
                 Width = 44,
                 TextAlignment = TextAlignment.Right,
                 FontFamily = (FontFamily)FindResource("DashboardFont"),
@@ -536,9 +721,17 @@ public partial class MainWindow : Window
 
     private void RestoreTrendPeakText()
     {
+        if (_snapshot is not null && IsUsageUnavailable(ActiveTotal()))
+        {
+            TrendPeakText.Text = string.Empty;
+            return;
+        }
+
         if (_trendMaximum <= 0)
         {
-            TrendPeakText.Text = _trendMetric == TrendMetric.Cost && _trendPoints.Any(item => item.RequestCount > 0)
+            TrendPeakText.Text = _trendMetric == TrendMetric.Cost && _trendPoints.Any(item => item.Pricing.UnpricedRequestCount > 0)
+                ? "费用未提供"
+                : _trendMetric == TrendMetric.Cost && _trendPoints.Any(item => item.RequestCount > 0)
                 ? "暂无消耗"
                 : "暂无记录";
             return;
@@ -549,7 +742,7 @@ public partial class MainWindow : Window
         {
             TrendMetric.Tokens => $"峰 {FormatTokens(peak.Tokens)}",
             TrendMetric.Requests => $"峰 {FormatCount(peak.RequestCount)}",
-            _ => $"峰 {FormatUsd(peak.Pricing.EstimatedUsd)}"
+            _ => $"{(_trendPoints.Any(item => !item.Pricing.IsComplete) ? "已知峰" : "峰")} {FormatCost(peak.Pricing)}"
         };
     }
 
@@ -569,9 +762,9 @@ public partial class MainWindow : Window
     private Color TrendAccentColor() =>
         _trendMetric switch
         {
-            TrendMetric.Tokens => Color.FromRgb(76, 134, 198),
-            TrendMetric.Requests => Color.FromRgb(139, 108, 214),
-            _ => Color.FromRgb(245, 154, 50)
+            TrendMetric.Tokens => Color.FromRgb(61, 111, 154),
+            TrendMetric.Requests => Color.FromRgb(110, 90, 166),
+            _ => Color.FromRgb(194, 113, 12)
         };
 
     private string FormatTrendAxisValue(double value) =>
@@ -719,7 +912,7 @@ public partial class MainWindow : Window
             ? $"{item.Pricing.EstimatedUsd * 100m / periodPricing.EstimatedUsd:0.#}%"
             : "未计价";
 
-        var grid = new Grid { Margin = new Thickness(0, 10, 0, 10) };
+        var grid = new Grid { Margin = new Thickness(0, 1, 0, 1) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -777,12 +970,15 @@ public partial class MainWindow : Window
 
         var row = new Border
         {
-            BorderBrush = (Brush)FindResource("DashboardBorder"),
-            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(4, 1, 4, 1),
+            CornerRadius = new CornerRadius(8),
+            Background = Brushes.Transparent,
             Cursor = System.Windows.Input.Cursors.Hand,
             ToolTip = "点击查看该模型趋势",
             Child = grid
         };
+        row.MouseEnter += (_, _) => row.Background = (Brush)FindResource("DashboardGreenSoft");
+        row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
         row.MouseLeftButtonDown += (_, _) => ApplyTrendModelFilter(item.Model.Model);
         return row;
     }
@@ -946,7 +1142,7 @@ public partial class MainWindow : Window
 
     private void UpdatePeriodButtons()
     {
-        var activeBackground = new SolidColorBrush(Color.FromRgb(231, 238, 226));
+        var activeBackground = (Brush)FindResource("DashboardPanel");
         var inactiveBackground = Brushes.Transparent;
         var activeForeground = (Brush)FindResource("DashboardGreen");
         var inactiveForeground = (Brush)FindResource("DashboardMuted");
@@ -1033,18 +1229,13 @@ public partial class MainWindow : Window
 
     private static string FormatCost(PricingEstimate estimate)
     {
-        if (estimate.IsQuotaBased)
-        {
-            return FormatUsd(estimate.EstimatedUsd);
-        }
-
         if (!estimate.HasPricedUsage && estimate.UnpricedRequestCount > 0)
         {
             return "未计价";
         }
 
         var value = FormatUsd(estimate.EstimatedUsd);
-        return estimate.IsComplete ? value : $"≈{value}";
+        return estimate.IsComplete ? value : $"≥{value}";
     }
 
     private static string FormatUsd(decimal value)
@@ -1061,7 +1252,12 @@ public partial class MainWindow : Window
 
     private static string BuildCostTooltip(PricingEstimate estimate)
     {
-        if (estimate.IsQuotaBased || (estimate.PricedRequestCount == 0 && estimate.UnpricedRequestCount == 0))
+        if (estimate.IsQuotaBased && estimate.IsComplete)
+        {
+            return PricingService.QuotaNotice;
+        }
+
+        if (estimate.PricedRequestCount == 0 && estimate.UnpricedRequestCount == 0)
         {
             return string.Empty;
         }
@@ -1071,7 +1267,59 @@ public partial class MainWindow : Window
             return PricingService.PricingNotice;
         }
 
-        return $"{PricingService.PricingNotice}\n未计价模型：{string.Join("、", estimate.UnpricedModels)}";
+        return $"仅显示已有计费信息的消耗。{PricingService.PricingNotice}\n未计价模型：{string.Join("、", estimate.UnpricedModels)}";
+    }
+
+    private string BuildSourceStatus()
+    {
+        var sources = new List<string>();
+        if (_appSettingsService.Settings.IsNewApiConfigured)
+        {
+            sources.Add("NewAPI");
+        }
+
+        if (_appSettingsService.Settings.AntigravityUsageEnabled)
+        {
+            sources.Add("Antigravity");
+        }
+
+        return sources.Count == 0 ? "未配置来源" : string.Join(" + ", sources);
+    }
+
+    private static string BuildSourceTooltip(UsageSnapshot snapshot)
+    {
+        var lines = new List<string>();
+        if (snapshot.Providers.Count > 0)
+        {
+            lines.Add($"Token 统计：{string.Join("、", snapshot.Providers.Select(item => item.Provider))}");
+        }
+
+        if (snapshot.AntigravityQuota is { } quota)
+        {
+            lines.Add($"Antigravity 配额：{FormatAntigravityQuota(quota)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.AntigravityUsageMessage))
+        {
+            lines.Add(snapshot.AntigravityUsageMessage);
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.SourceMessage))
+        {
+            lines.Add(snapshot.SourceMessage);
+        }
+
+        return lines.Count == 0 ? "尚未读取到数据来源" : string.Join("\n", lines);
+    }
+
+    private static string FormatAntigravityQuota(AntigravityQuotaSnapshot snapshot)
+    {
+        var models = snapshot.Models
+            .Select(item => (item, Remaining: item.RemainingFraction))
+            .Where(item => item.Remaining is not null)
+            .Take(5)
+            .Select(item => $"{item.item.Label ?? item.item.Model} {item.Remaining!.Value:P0}");
+        return string.Join("、", models);
     }
 
     private static string JoinTooltip(string firstLine, string extra) =>
@@ -1151,7 +1399,8 @@ public partial class MainWindow : Window
     {
         Overview,
         Trend,
-        Model
+        Model,
+        Quota
     }
 
     private sealed record ModelRankingEntry(

@@ -18,7 +18,7 @@ public sealed class LocalDataService
     }
 
     public LocalDataUsage GetUsage() => new(
-        SumFiles(_folder, "usage-index-v*.json.gz"),
+        SumFiles(_folder, "usage-index-v*.json.gz") + SumFiles(_folder, "antigravity-usage-v*.json.gz"),
         SumFiles(_logFolder, "*.log"));
 
     public void OpenFolder()

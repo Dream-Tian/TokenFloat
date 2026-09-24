@@ -46,6 +46,7 @@ public partial class App : System.Windows.Application
         base.OnStartup(e);
 
         var isVerificationMode = e.Args.Contains("--verify-usage", StringComparer.OrdinalIgnoreCase) ||
+                                 e.Args.Contains("--verify-antigravity", StringComparer.OrdinalIgnoreCase) ||
                                  e.Args.Contains("--verify-update-manifest", StringComparer.OrdinalIgnoreCase);
         if (!isVerificationMode)
         {
@@ -69,6 +70,29 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        if (e.Args.Contains("--verify-antigravity", StringComparer.OrdinalIgnoreCase))
+        {
+            var quotaService = new AntigravityQuotaService();
+            var quotaResult = await quotaService.ReadAsync();
+            var usageResult = await new AntigravityUsageService(quotaService.Client).ReadAsync();
+            Console.WriteLine(JsonSerializer.Serialize(new
+            {
+                QuotaMessage = quotaResult.Message,
+                Quota = quotaResult.Snapshot,
+                UsageMessage = usageResult.Message,
+                usageResult.IsComplete,
+                usageResult.IsUnavailable,
+                Records = usageResult.Events.Count,
+                InputTokens = usageResult.Events.Sum(item => item.InputTokens),
+                ReportedInputTokens = usageResult.Events.Sum(item => item.ReportedInputTokens ?? item.InputTokens),
+                OutputTokens = usageResult.Events.Sum(item => item.OutputTokens),
+                CacheReadTokens = usageResult.Events.Sum(item => item.CachedInputTokens),
+                CacheWriteTokens = usageResult.Events.Sum(item => item.CacheWriteInputTokens)
+            }));
+            Shutdown();
+            return;
+        }
+
         if (e.Args.Contains("--verify-usage", StringComparer.OrdinalIgnoreCase))
         {
             var appSettingsService = new AppSettingsService();
@@ -78,6 +102,11 @@ public partial class App : System.Windows.Application
             {
                 NewApiConfigured = appSettingsService.Settings.IsNewApiConfigured,
                 NewApiBaseUrl = appSettingsService.Settings.NewApiBaseUrl,
+                appSettingsService.Settings.AntigravityUsageEnabled,
+                snapshot.AntigravityUsageMessage,
+                snapshot.AntigravityUsageIsComplete,
+                snapshot.AntigravityStatusMessage,
+                snapshot.AntigravityQuota,
                 snapshot.SourceMessage,
                 TodayRates = snapshot.RatesFor(UsagePeriod.Today),
                 Totals = Enum.GetValues<UsagePeriod>().ToDictionary(
@@ -191,6 +220,7 @@ public partial class App : System.Windows.Application
             _localDataService,
             update => DownloadUpdateAsync(update, _updateService),
             () => (MainWindow as TokenFloat.MainWindow)?.ClearUsageCacheAsync() ?? Task.FromResult(false),
+            () => (MainWindow as TokenFloat.MainWindow)?.RefreshUsageAsync() ?? Task.FromResult(false),
             ExitApplication,
             _errorLogService,
             () => (MainWindow as TokenFloat.MainWindow)?.LastRefreshDuration);

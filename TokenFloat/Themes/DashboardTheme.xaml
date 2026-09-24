@@ -1,0 +1,24 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <FontFamily x:Key="DashboardFont">Noto Serif SC, KaiTi</FontFamily>
+    <FontFamily x:Key="DashboardMonoFont">Noto Serif SC, KaiTi</FontFamily>
+
+    <SolidColorBrush x:Key="DashboardBackground" Color="#F4F1EB" />
+    <SolidColorBrush x:Key="DashboardPanel" Color="#FFFcf8" />
+    <SolidColorBrush x:Key="DashboardBorder" Color="#E4DED4" />
+    <SolidColorBrush x:Key="DashboardText" Color="#1C1917" />
+    <SolidColorBrush x:Key="DashboardMuted" Color="#78716C" />
+    <SolidColorBrush x:Key="DashboardSubtle" Color="#A8A29E" />
+    <SolidColorBrush x:Key="DashboardGreen" Color="#3E6B4F" />
+    <SolidColorBrush x:Key="DashboardGreenSoft" Color="#E6F0E7" />
+    <SolidColorBrush x:Key="DashboardBlue" Color="#3D6F9A" />
+    <SolidColorBrush x:Key="DashboardBlueSoft" Color="#E6F1F8" />
+    <SolidColorBrush x:Key="DashboardPink" Color="#B85C74" />
+    <SolidColorBrush x:Key="DashboardPinkSoft" Color="#F8E9EE" />
+    <SolidColorBrush x:Key="DashboardOrange" Color="#C2710C" />
+    <SolidColorBrush x:Key="DashboardOrangeSoft" Color="#F8EFE3" />
+    <SolidColorBrush x:Key="DashboardViolet" Color="#6E5AA6" />
+    <SolidColorBrush x:Key="DashboardTrack" Color="#E7E1D6" />
+    <SolidColorBrush x:Key="DashboardSegment" Color="#EBE6DE" />
+    <SolidColorBrush x:Key="DashboardDanger" Color="#B42318" />
+</ResourceDictionary>

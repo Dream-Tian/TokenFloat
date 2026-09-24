@@ -61,6 +61,19 @@ public sealed class AppSettingsService
         SettingsChanged?.Invoke(_settings);
     }
 
+    /// <summary>
+    /// 保存原生 Antigravity IDE 配额读取开关。
+    /// </summary>
+    public void SetAntigravity(bool enabled)
+    {
+        _settings = _settings with
+        {
+            AntigravityUsageEnabled = enabled
+        };
+        Save();
+        SettingsChanged?.Invoke(_settings);
+    }
+
     public void SetKeepWindowOnTop(bool enabled)
     {
         _settings = _settings with { KeepWindowOnTop = enabled };
@@ -89,7 +102,8 @@ public sealed class AppSettingsService
                         stored.NewApiBaseUrl,
                         protectedToken ?? legacyToken,
                         Math.Max(0, stored.NewApiUserId),
-                        stored.KeepWindowOnTop);
+                        stored.KeepWindowOnTop,
+                        stored.AntigravityUsageEnabled);
                     return (settings, migrateLegacyToken);
                 }
             }
@@ -116,7 +130,8 @@ public sealed class AppSettingsService
                 NewApiBaseUrl = _settings.NewApiBaseUrl,
                 NewApiAccessTokenProtected = ProtectToken(_settings.NewApiAccessToken),
                 NewApiUserId = _settings.NewApiUserId,
-                KeepWindowOnTop = _settings.KeepWindowOnTop
+                KeepWindowOnTop = _settings.KeepWindowOnTop,
+                AntigravityUsageEnabled = _settings.AntigravityUsageEnabled
             };
             File.WriteAllText(_settingsPath, JsonSerializer.Serialize(stored, JsonOptions));
         }
@@ -174,6 +189,8 @@ public sealed class AppSettingsService
 
         public bool KeepWindowOnTop { get; set; }
 
+        public bool AntigravityUsageEnabled { get; set; }
+
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? NewApiAccessToken { get; set; }
     }
@@ -185,9 +202,12 @@ public sealed record AppSettings(
     string NewApiBaseUrl = "",
     [property: JsonIgnore] string NewApiAccessToken = "",
     int NewApiUserId = 0,
-    bool KeepWindowOnTop = false)
+    bool KeepWindowOnTop = false,
+    bool AntigravityUsageEnabled = false)
 {
     public bool IsNewApiConfigured =>
         !string.IsNullOrWhiteSpace(NewApiBaseUrl) &&
         !string.IsNullOrWhiteSpace(NewApiAccessToken);
+
+    public bool HasUsageSource => IsNewApiConfigured || AntigravityUsageEnabled;
 }

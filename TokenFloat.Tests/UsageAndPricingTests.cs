@@ -92,6 +92,48 @@ public sealed class UsageAndPricingTests
     }
 
     [Fact]
+    public void Estimate_MixedSourcesPreservesUnpricedAntigravityRequests()
+    {
+        var now = DateTimeOffset.Now;
+        var snapshot = UsageLogService.BuildSnapshot([
+            new TokenUsageEvent("newapi", "NewAPI", now, 1_000, 200, 0, "shared-model", Quota: 250_000, RequestCount: 2),
+            new TokenUsageEvent("antigravity", "Antigravity", now, 2_000, 300, 500, "shared-model")
+        ]);
+        var pricing = new PricingService();
+        var range = UsageDateRange.FromInclusiveDates(now.LocalDateTime, now.LocalDateTime);
+
+        var estimate = pricing.Estimate(snapshot, UsagePeriod.Today);
+
+        Assert.Equal(0.5m, estimate.EstimatedUsd);
+        Assert.Equal(2, estimate.PricedRequestCount);
+        Assert.Equal(1, estimate.UnpricedRequestCount);
+        Assert.False(estimate.IsComplete);
+        Assert.Contains("Antigravity / shared-model", estimate.UnpricedModels);
+        var rangeEstimate = pricing.Estimate(snapshot, range);
+        Assert.Equal(estimate.EstimatedUsd, rangeEstimate.EstimatedUsd);
+        Assert.Equal(estimate.UnpricedRequestCount, rangeEstimate.UnpricedRequestCount);
+        Assert.False(pricing.EstimateModels(snapshot, UsagePeriod.Today)["shared-model"].IsComplete);
+        var trend = pricing.Trend(snapshot, UsagePeriod.Today);
+        Assert.Equal(estimate.EstimatedUsd, trend.Points.Sum(point => point.Pricing.EstimatedUsd));
+        Assert.Equal(1, trend.Points.Sum(point => point.Pricing.UnpricedRequestCount));
+    }
+
+    [Fact]
+    public void Estimate_AntigravityDoesNotUsePublicModelPrices()
+    {
+        var snapshot = UsageLogService.BuildSnapshot([
+            new TokenUsageEvent("native", "Antigravity", DateTimeOffset.Now, 1_000_000, 100_000, 20_000, "gemini-3.1-pro")
+        ]);
+
+        var estimate = new PricingService().Estimate(snapshot, UsagePeriod.Today);
+
+        Assert.Equal(0m, estimate.EstimatedUsd);
+        Assert.False(estimate.IsQuotaBased);
+        Assert.False(estimate.IsComplete);
+        Assert.Equal(1, estimate.UnpricedRequestCount);
+    }
+
+    [Fact]
     public void Estimate_DoesNotChargeUnknownModels()
     {
         var snapshot = UsageLogService.BuildSnapshot([

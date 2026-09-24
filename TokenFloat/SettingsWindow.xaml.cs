@@ -14,6 +14,7 @@ public partial class SettingsWindow : Window
     private readonly LocalDataService _localDataService;
     private readonly Func<UpdateInfo, Task<string?>> _downloadInstaller;
     private readonly Func<Task<bool>> _clearUsageCache;
+    private readonly Func<Task<bool>> _refreshUsage;
     private readonly Action _exitApplication;
     private readonly ErrorLogService _errorLogService;
     private readonly Func<TimeSpan?> _getLastRefreshDuration;
@@ -27,6 +28,7 @@ public partial class SettingsWindow : Window
         LocalDataService localDataService,
         Func<UpdateInfo, Task<string?>> downloadInstaller,
         Func<Task<bool>> clearUsageCache,
+        Func<Task<bool>> refreshUsage,
         Action exitApplication,
         ErrorLogService errorLogService,
         Func<TimeSpan?>? getLastRefreshDuration = null)
@@ -38,6 +40,7 @@ public partial class SettingsWindow : Window
         _localDataService = localDataService;
         _downloadInstaller = downloadInstaller;
         _clearUsageCache = clearUsageCache;
+        _refreshUsage = refreshUsage;
         _exitApplication = exitApplication;
         _errorLogService = errorLogService;
         _getLastRefreshDuration = getLastRefreshDuration ?? (() => null);
@@ -50,11 +53,14 @@ public partial class SettingsWindow : Window
         var appSettings = _appSettingsService.Settings;
         RefreshOnlyVisibleCheckBox.IsChecked = appSettings.RefreshOnlyWhenVisible;
         KeepOnTopCheckBox.IsChecked = appSettings.KeepWindowOnTop;
+        Topmost = appSettings.KeepWindowOnTop;
+        ShowSettingsPage("Source");
         NewApiBaseUrlTextBox.Text = appSettings.NewApiBaseUrl;
         NewApiTokenPasswordBox.Password = appSettings.NewApiAccessToken;
         NewApiUserIdTextBox.Text = appSettings.NewApiUserId > 0
             ? appSettings.NewApiUserId.ToString()
             : string.Empty;
+        AntigravityUsageCheckBox.IsChecked = appSettings.AntigravityUsageEnabled;
         RefreshIntervalComboBox.SelectedItem = RefreshIntervalComboBox.Items
             .OfType<ComboBoxItem>()
             .FirstOrDefault(item =>
@@ -63,6 +69,35 @@ public partial class SettingsWindow : Window
         RefreshDataUsage();
         SetLastRefreshDuration(_getLastRefreshDuration());
         _isLoading = false;
+    }
+
+    private void SettingsTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button { Tag: string tag })
+        {
+            ShowSettingsPage(tag);
+        }
+    }
+
+    /// <summary>
+    /// 只显示当前标签页，选中项用浅色底和正文色标出。
+    /// </summary>
+    private void ShowSettingsPage(string tag)
+    {
+        SourcePage.Visibility = tag == "Source" ? Visibility.Visible : Visibility.Collapsed;
+        WindowPage.Visibility = tag == "Window" ? Visibility.Visible : Visibility.Collapsed;
+        DataPage.Visibility = tag == "Data" ? Visibility.Visible : Visibility.Collapsed;
+        UpdatePage.Visibility = tag == "Update" ? Visibility.Visible : Visibility.Collapsed;
+        SetSettingsTabState(SourceTabButton, tag == "Source");
+        SetSettingsTabState(WindowTabButton, tag == "Window");
+        SetSettingsTabState(DataTabButton, tag == "Data");
+        SetSettingsTabState(UpdateTabButton, tag == "Update");
+    }
+
+    private void SetSettingsTabState(System.Windows.Controls.Button button, bool active)
+    {
+        button.Background = active ? (System.Windows.Media.Brush)FindResource("DashboardPanel") : System.Windows.Media.Brushes.Transparent;
+        button.Foreground = active ? (System.Windows.Media.Brush)FindResource("DashboardText") : (System.Windows.Media.Brush)FindResource("DashboardMuted");
     }
 
     private void AutoUpdateCheckBox_Click(object sender, RoutedEventArgs e)
@@ -93,20 +128,14 @@ public partial class SettingsWindow : Window
 
         var enabled = KeepOnTopCheckBox.IsChecked == true;
         _appSettingsService.SetKeepWindowOnTop(enabled);
-        ShowStatus(enabled ? "窗口将保持置顶" : "窗口置顶已关闭", true);
+        Topmost = enabled;
+        ShowStatus(enabled ? "窗口将保持在最上层" : "已取消置于顶层", true);
     }
 
     private async void SaveNewApiButton_Click(object sender, RoutedEventArgs e)
     {
         if (!TryReadNewApiSettings(out var settings))
         {
-            return;
-        }
-
-        if (!settings.IsNewApiConfigured)
-        {
-            _appSettingsService.SetNewApi(string.Empty, string.Empty, 0);
-            ShowStatus("NewAPI 设置已清空", true);
             return;
         }
 
@@ -122,14 +151,14 @@ public partial class SettingsWindow : Window
         ShowStatus("NewAPI 设置已保存，正在刷新远端汇总…", true);
         try
         {
-            if (await _clearUsageCache())
+            if (await _refreshUsage())
             {
                 RefreshDataUsage();
                 ShowStatus("NewAPI 设置已保存，汇总已刷新", true);
             }
             else
             {
-                ShowStatus("NewAPI 设置已保存，当前统计正在刷新", true);
+                ShowStatus("NewAPI 设置已保存，将在当前刷新完成后重新读取", true);
             }
         }
         catch (Exception exception)
@@ -224,6 +253,66 @@ public partial class SettingsWindow : Window
         return true;
     }
 
+    /// <summary>
+    /// 保存 Antigravity 开关并刷新来源，保留 NewAPI 已缓存的历史记录。
+    /// </summary>
+    private async void SaveAntigravityButton_Click(object sender, RoutedEventArgs e)
+    {
+        var enabled = AntigravityUsageCheckBox.IsChecked == true;
+
+        _appSettingsService.SetAntigravity(enabled);
+        SaveAntigravityButton.IsEnabled = false;
+        TestAntigravityButton.IsEnabled = false;
+        ShowStatus(enabled ? "Antigravity 本地来源已保存，正在刷新" : "Antigravity 本地来源已关闭，正在刷新", true);
+        try
+        {
+            if (await _refreshUsage())
+            {
+                RefreshDataUsage();
+                ShowStatus("Antigravity 来源已保存，读取结果见主面板及“配额”页", true);
+            }
+            else
+            {
+                ShowStatus("来源已保存，将在当前刷新完成后重新读取", true);
+            }
+        }
+        catch (Exception exception)
+        {
+            _errorLogService.Write("设置页刷新 Antigravity 来源", exception);
+            ShowStatus($"来源已保存，但刷新失败：{exception.Message}", false);
+        }
+        finally
+        {
+            SaveAntigravityButton.IsEnabled = true;
+            TestAntigravityButton.IsEnabled = true;
+        }
+    }
+
+    /// <summary>
+    /// 只读测试本地 IDE 配额接口，展示连接结果而不修改已保存的来源开关。
+    /// </summary>
+    private async void TestAntigravityButton_Click(object sender, RoutedEventArgs e)
+    {
+        TestAntigravityButton.IsEnabled = false;
+        ShowStatus("正在读取 Antigravity 当前配额…");
+        try
+        {
+            var result = await _usageLogService.TestAntigravityConnectionAsync();
+            ShowStatus(result.Snapshot is { } quota
+                ? $"连接成功 · {quota.Models.Count} 个模型配额；保存后读取 Token 用量"
+                : result.Message, result.Snapshot is not null);
+        }
+        catch (Exception exception)
+        {
+            _errorLogService.Write("设置页测试 Antigravity 配额", exception);
+            ShowStatus("无法读取 Antigravity，请确认 IDE 已运行并登录", false);
+        }
+        finally
+        {
+            TestAntigravityButton.IsEnabled = true;
+        }
+    }
+
     private void SaveRefreshSettings()
     {
         if (_isLoading ||
@@ -253,7 +342,7 @@ public partial class SettingsWindow : Window
     }
 
     /// <summary>
-    /// 清除统计缓存并从 NewAPI 重拉日志，完成后刷新占用信息。
+    /// 清除两种来源的统计缓存并重读，完成后刷新占用信息。
     /// </summary>
     private async void ClearUsageCacheButton_Click(object sender, RoutedEventArgs e)
     {
@@ -263,7 +352,7 @@ public partial class SettingsWindow : Window
         {
             if (!await _clearUsageCache())
             {
-                ShowStatus("统计正在刷新，请稍后再试", false);
+                ShowStatus("已安排在当前刷新完成后清除并重建缓存", true);
                 return;
             }
 
@@ -427,10 +516,7 @@ public partial class SettingsWindow : Window
     private void ShowStatus(string message, bool success = true)
     {
         StatusText.Text = message;
-        StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-            success
-                ? System.Windows.Media.Color.FromRgb(95, 127, 79)
-                : System.Windows.Media.Color.FromRgb(231, 114, 152));
+        StatusText.Foreground = (System.Windows.Media.Brush)FindResource(success ? "DashboardGreen" : "DashboardDanger");
     }
 
     private static string FormatBytes(long bytes)

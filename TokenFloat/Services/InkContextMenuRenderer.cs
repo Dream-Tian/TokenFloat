@@ -7,11 +7,11 @@ namespace TokenFloat.Services;
 public sealed class InkContextMenuRenderer : ToolStripProfessionalRenderer
 {
     private static readonly Color Background = Color.FromArgb(255, 255, 255);
-    private static readonly Color Border = Color.FromArgb(221, 225, 218);
-    private static readonly Color Text = Color.FromArgb(32, 34, 31);
-    private static readonly Color Muted = Color.FromArgb(123, 129, 120);
-    private static readonly Color Green = Color.FromArgb(95, 127, 79);
-    private static readonly Color GreenSurface = Color.FromArgb(238, 244, 234);
+    private static readonly Color Border = Color.FromArgb(228, 222, 212);
+    private static readonly Color Text = Color.FromArgb(28, 25, 23);
+    private static readonly Color Muted = Color.FromArgb(120, 113, 108);
+    private static readonly Color Green = Color.FromArgb(62, 107, 79);
+    private static readonly Color GreenSurface = Color.FromArgb(230, 240, 231);
 
     public InkContextMenuRenderer() : base(new DashboardColorTable())
     {

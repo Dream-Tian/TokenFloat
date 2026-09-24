@@ -3,117 +3,118 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="TokenFloat 更新"
         Icon="Assets/tokenfloat-cat.png"
-        Width="340"
-        Height="218"
+        Width="360"
+        Height="236"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         Topmost="False"
-        WindowStartupLocation="CenterOwner">
-    <Border Background="#F8F5F0"
-            BorderBrush="#26333333"
-            BorderThickness="1"
-            CornerRadius="13">
-        <Grid Margin="22,17,22,18">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+        WindowStartupLocation="CenterOwner"
+        FontFamily="楷体">
+    <Grid>
+        <Border Margin="16,14,16,18" CornerRadius="18" Background="#241C1917" IsHitTestVisible="False" />
+        <Border Margin="12,8,12,14"
+                Background="{StaticResource DashboardBackground}"
+                BorderBrush="{StaticResource DashboardBorder}"
+                BorderThickness="1"
+                CornerRadius="16">
+            <Grid Margin="22,18,22,18">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-            <Grid MouseLeftButtonDown="Header_MouseLeftButtonDown">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock Text="下载更新"
-                               FontFamily="华文行楷"
-                               FontSize="22"
-                               Foreground="#1A1A1A" />
-                    <TextBlock x:Name="VersionText"
-                               Margin="1,1,0,0"
-                               FontFamily="楷体"
-                               FontSize="11"
-                               Foreground="#777777" />
-                </StackPanel>
-                <Border Grid.Column="1"
-                        Width="29"
-                        Height="29"
-                        Background="#C41E3A"
-                        CornerRadius="5">
-                    <TextBlock Text="新"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               FontFamily="华文隶书"
-                               FontSize="15"
-                               Foreground="#FFFFF0" />
-                </Border>
-            </Grid>
-
-            <TextBlock x:Name="StatusText"
-                       Grid.Row="1"
-                       Margin="0,18,0,7"
-                       Text="准备下载…"
-                       FontFamily="楷体"
-                       FontSize="13"
-                       Foreground="#333333" />
-
-            <ProgressBar x:Name="DownloadProgressBar"
-                         Grid.Row="2"
-                         Height="8"
-                         Minimum="0"
-                         Maximum="100"
-                         Background="#1A333333"
-                         Foreground="#2E8B57">
-                <ProgressBar.Template>
-                    <ControlTemplate TargetType="ProgressBar">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
-                            <Grid x:Name="PART_Track" ClipToBounds="True">
-                                <Border x:Name="PART_Indicator"
-                                        HorizontalAlignment="Left"
-                                        Background="{TemplateBinding Foreground}"
-                                        CornerRadius="4" />
-                            </Grid>
+                <Grid MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Width="28" Height="28" Background="{StaticResource DashboardGreenSoft}" CornerRadius="8">
+                            <Image Width="20" Height="20" Source="Assets/tokenfloat-cat.png" Stretch="UniformToFill" />
                         </Border>
-                    </ControlTemplate>
-                </ProgressBar.Template>
-            </ProgressBar>
+                        <StackPanel Margin="10,0,0,0">
+                            <TextBlock Text="下载更新"
+                                       FontFamily="华文行楷"
+                                       FontSize="22"
+                                       Foreground="{StaticResource DashboardText}" />
+                            <TextBlock x:Name="VersionText"
+                                       Margin="0,1,0,0"
+                                       FontFamily="楷体"
+                                       FontSize="11"
+                                       Foreground="{StaticResource DashboardMuted}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
 
-            <Grid Grid.Row="3" Margin="0,7,0,0">
-                <TextBlock x:Name="SizeText"
-                           Text="0 B"
-                           FontFamily="楷体"
-                           FontSize="11"
-                           Foreground="#777777" />
-                <TextBlock x:Name="SpeedText"
-                           HorizontalAlignment="Right"
-                           Text="0 B/s"
-                           FontFamily="楷体"
-                           FontSize="11"
-                           Foreground="#777777" />
+                <TextBlock x:Name="StatusText"
+                           Grid.Row="1"
+                           Margin="0,16,0,8"
+                           Text="准备下载…"
+                           FontSize="13"
+                           Foreground="{StaticResource DashboardText}" />
+
+                <ProgressBar x:Name="DownloadProgressBar"
+                             Grid.Row="2"
+                             Height="6"
+                             Minimum="0"
+                             Maximum="100"
+                             Background="{StaticResource DashboardTrack}"
+                             Foreground="{StaticResource DashboardGreen}">
+                    <ProgressBar.Template>
+                        <ControlTemplate TargetType="ProgressBar">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="3">
+                                <Grid x:Name="PART_Track" ClipToBounds="True">
+                                    <Border x:Name="PART_Indicator"
+                                            HorizontalAlignment="Left"
+                                            Background="{TemplateBinding Foreground}"
+                                            CornerRadius="3" />
+                                </Grid>
+                            </Border>
+                        </ControlTemplate>
+                    </ProgressBar.Template>
+                </ProgressBar>
+
+                <Grid Grid.Row="3" Margin="0,8,0,0">
+                    <TextBlock x:Name="SizeText"
+                               Text="0 B"
+                               FontSize="11"
+                               Foreground="{StaticResource DashboardMuted}" />
+                    <TextBlock x:Name="SpeedText"
+                               HorizontalAlignment="Right"
+                               Text="0 B/s"
+                               FontSize="11"
+                               Foreground="{StaticResource DashboardMuted}" />
+                </Grid>
+
+                <Button x:Name="CancelButton"
+                        Grid.Row="4"
+                        Width="72"
+                        Height="30"
+                        Margin="0,14,0,0"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Content="取消"
+                        Click="CancelButton_Click"
+                        Cursor="Hand"
+                        FontSize="12"
+                        Foreground="{StaticResource DashboardMuted}"
+                        Background="{StaticResource DashboardPanel}"
+                        BorderBrush="{StaticResource DashboardBorder}"
+                        BorderThickness="1">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="8">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
             </Grid>
-
-            <Button x:Name="CancelButton"
-                    Grid.Row="4"
-                    Width="72"
-                    Height="28"
-                    Margin="0,14,0,0"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Content="取消"
-                    Click="CancelButton_Click"
-                    Cursor="Hand"
-                    FontFamily="楷体"
-                    FontSize="13"
-                    Foreground="#666666"
-                    Background="Transparent"
-                    BorderBrush="#55333333"
-                    BorderThickness="1" />
-        </Grid>
-    </Border>
+        </Border>
+    </Grid>
 </Window>

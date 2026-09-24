@@ -5,17 +5,17 @@ namespace TokenFloat.Services;
 public sealed class PricingService
 {
     public const string PricingNotice =
-        "NewAPI 日志未返回已扣额度，当前模型无法按服务端倍率折算；请以 NewAPI 后台为准。";
+        "缺少可用计费信息的请求保留为未计价；Antigravity Token 和配额不能折算为订阅账单。";
     public const string QuotaNotice =
         "按 NewAPI 消费日志中的已扣额度折算；实际显示受服务端 quota_per_unit 配置影响。";
 
     /// <summary>
-    /// 优先按 NewAPI quota 折算消耗，缺少 quota 时保留旧模型价兜底。
+    /// 按事件来源计算已知消耗；仅汇总数据沿用 NewAPI quota，避免给本地请求误计费用。
     /// </summary>
     public PricingEstimate Estimate(UsageSnapshot snapshot, UsagePeriod period)
     {
         var total = snapshot.TotalFor(period);
-        return total.Quota > 0
+        return snapshot.Events.Count == 0 && total.Quota > 0
             ? EstimateQuota(total.Quota, total.RequestCount, snapshot.QuotaPerUnit)
             : EstimateEvents(EventsForPeriod(snapshot, period), snapshot.QuotaPerUnit);
     }
@@ -141,21 +141,21 @@ public sealed class PricingService
     {
         var source = events.ToArray();
         var quotaTotal = source.Sum(item => item.Quota);
-        if (quotaTotal > 0)
-        {
-            return EstimateQuota(
-                quotaTotal,
-                source.Where(item => item.Quota > 0).Sum(EventRequestCount),
-                quotaPerUnit);
-        }
-
-        decimal total = 0;
+        var unit = quotaPerUnit > 0 ? quotaPerUnit : 500_000m;
+        decimal total = quotaTotal / unit;
         long pricedRequests = 0;
         long unpricedRequests = 0;
+        var hasModelPricing = false;
         var unpricedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in source)
         {
+            if (item.Quota > 0)
+            {
+                pricedRequests += EventRequestCount(item);
+                continue;
+            }
+
             var price = ResolvePrice(item);
             if (price is null)
             {
@@ -167,19 +167,22 @@ public sealed class PricingService
             var regularInput = price.InputIncludesCached
                 ? Math.Max(0, item.InputTokens - item.CachedInputTokens)
                 : item.InputTokens;
-            total += regularInput * price.InputPerMillion;
-            total += item.CachedInputTokens * price.CachedInputPerMillion;
-            total += item.CacheWriteInputTokens * price.CacheWriteFiveMinutesPerMillion;
-            total += item.CacheWriteOneHourInputTokens * price.CacheWriteOneHourPerMillion;
-            total += item.OutputTokens * price.OutputPerMillion;
+            total += (regularInput * price.InputPerMillion +
+                item.CachedInputTokens * price.CachedInputPerMillion +
+                item.CacheWriteInputTokens * price.CacheWriteFiveMinutesPerMillion +
+                item.CacheWriteOneHourInputTokens * price.CacheWriteOneHourPerMillion +
+                item.OutputTokens * price.OutputPerMillion) / 1_000_000m;
             pricedRequests += EventRequestCount(item);
+            hasModelPricing = true;
         }
 
         return new PricingEstimate(
-            total / 1_000_000m,
+            total,
             pricedRequests,
             unpricedRequests,
-            unpricedModels.Order(StringComparer.OrdinalIgnoreCase).ToArray());
+            unpricedModels.Order(StringComparer.OrdinalIgnoreCase).ToArray(),
+            quotaTotal > 0 && !hasModelPricing,
+            quotaTotal);
     }
 
     private static PricingEstimate EstimateQuota(decimal quota, long requestCount, decimal quotaPerUnit)

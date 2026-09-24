@@ -98,6 +98,26 @@ public sealed class SettingsAndDataServiceTests : IDisposable
     }
 
     [Fact]
+    public void AntigravitySettings_PersistAndNotify()
+    {
+        var service = new AppSettingsService(_folder);
+        AppSettings? notified = null;
+        service.SettingsChanged += settings => notified = settings;
+
+        service.SetAntigravity(true);
+        var reloaded = new AppSettingsService(_folder);
+
+        Assert.NotNull(notified);
+        Assert.True(notified.AntigravityUsageEnabled);
+        Assert.True(reloaded.Settings.AntigravityUsageEnabled);
+        Assert.True(reloaded.Settings.HasUsageSource);
+
+        service.SetAntigravity(false);
+
+        Assert.False(new AppSettingsService(_folder).Settings.HasUsageSource);
+    }
+
+    [Fact]
     public void LegacyPlaintextToken_IsMigratedToDpapi()
     {
         var settingsPath = Path.Combine(_folder, "app-settings.json");
@@ -134,6 +154,7 @@ public sealed class SettingsAndDataServiceTests : IDisposable
         var logFolder = Path.Combine(_folder, "logs");
         Directory.CreateDirectory(logFolder);
         File.WriteAllBytes(Path.Combine(_folder, "usage-index-v6.json.gz"), new byte[128]);
+        File.WriteAllBytes(Path.Combine(_folder, "antigravity-usage-v1.json.gz"), new byte[32]);
         File.WriteAllBytes(Path.Combine(_folder, "other.json"), new byte[256]);
         File.WriteAllBytes(Path.Combine(logFolder, "tokenfloat.log"), new byte[64]);
         var service = new LocalDataService(_folder);
@@ -142,9 +163,9 @@ public sealed class SettingsAndDataServiceTests : IDisposable
         service.ClearErrorLogs();
         var cleared = service.GetUsage();
 
-        Assert.Equal(128, usage.UsageCacheBytes);
+        Assert.Equal(160, usage.UsageCacheBytes);
         Assert.Equal(64, usage.ErrorLogBytes);
-        Assert.Equal(128, cleared.UsageCacheBytes);
+        Assert.Equal(160, cleared.UsageCacheBytes);
         Assert.Equal(0, cleared.ErrorLogBytes);
         Assert.True(File.Exists(Path.Combine(_folder, "other.json")));
     }

@@ -144,7 +144,7 @@ public sealed class TrayIconService : IDisposable
     }
 
     /// <summary>
-    /// 创建与主窗口一致的宣纸菜单，并用自绘渲染器替换系统默认配色和勾选样式。
+    /// 创建与主窗口一致的浅色菜单，并用自绘渲染器替换系统默认配色和勾选样式。
     /// </summary>
     private static ContextMenuStrip CreateContextMenu() => new()
     {

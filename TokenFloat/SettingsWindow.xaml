@@ -4,7 +4,7 @@
         Title="TokenFloat 设置"
         Icon="Assets/tokenfloat-cat.png"
         Width="430"
-        Height="780"
+        Height="520"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -14,16 +14,28 @@
         WindowStartupLocation="CenterScreen"
         FontFamily="楷体">
     <Window.Resources>
-        <FontFamily x:Key="DashboardFont">Noto Serif SC, KaiTi</FontFamily>
-        <FontFamily x:Key="DashboardMonoFont">Noto Serif SC, KaiTi</FontFamily>
-        <SolidColorBrush x:Key="DashboardBackground" Color="#FAFBF9" />
-        <SolidColorBrush x:Key="DashboardPanel" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="DashboardBorder" Color="#DDE1DA" />
-        <SolidColorBrush x:Key="DashboardText" Color="#20221F" />
-        <SolidColorBrush x:Key="DashboardMuted" Color="#7B8178" />
-        <SolidColorBrush x:Key="DashboardSubtle" Color="#A5AAA2" />
-        <SolidColorBrush x:Key="DashboardGreen" Color="#5F7F4F" />
-        <SolidColorBrush x:Key="DashboardPink" Color="#E77298" />
+
+        <Style x:Key="SettingsTabButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="24" />
+            <Setter Property="MinWidth" Value="44" />
+            <Setter Property="Margin" Value="1,0" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="Foreground" Value="{StaticResource DashboardMuted}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontFamily" Value="{StaticResource DashboardFont}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <Style x:Key="DashboardButtonStyle" TargetType="Button">
             <Setter Property="Height" Value="30" />
@@ -32,7 +44,7 @@
             <Setter Property="FontFamily" Value="{StaticResource DashboardFont}" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{StaticResource DashboardMuted}" />
-            <Setter Property="Background" Value="#F7F8F5" />
+            <Setter Property="Background" Value="{StaticResource DashboardBackground}" />
             <Setter Property="BorderBrush" Value="{StaticResource DashboardBorder}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Cursor" Value="Hand" />
@@ -49,12 +61,12 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ButtonBorder" Property="Background" Value="#EEF4EA" />
-                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#BFD0B6" />
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource DashboardGreenSoft}" />
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#C5D4C4" />
                                 <Setter Property="Foreground" Value="{StaticResource DashboardText}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="ButtonBorder" Property="Background" Value="#E2ECDD" />
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#D7E6D6" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.45" />
@@ -80,7 +92,7 @@
                             </Grid.ColumnDefinitions>
                             <ContentPresenter VerticalAlignment="Center" />
                             <Grid Grid.Column="1" Width="40" Height="22">
-                                <Border x:Name="Track" Background="#E8ECE6" BorderBrush="#D4DBD0" BorderThickness="1" CornerRadius="11" />
+                                <Border x:Name="Track" Background="{StaticResource DashboardTrack}" BorderThickness="0" CornerRadius="11" />
                                 <Ellipse x:Name="Knob" Width="16" Height="16" Margin="3" HorizontalAlignment="Left" Fill="White" />
                             </Grid>
                         </Grid>
@@ -112,7 +124,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="ItemBorder" Property="Background" Value="#EEF4EA" />
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource DashboardGreenSoft}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter Property="Foreground" Value="{StaticResource DashboardGreen}" />
@@ -128,7 +140,7 @@
             <Setter Property="FontFamily" Value="{StaticResource DashboardFont}" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{StaticResource DashboardText}" />
-            <Setter Property="Background" Value="#F7F8F5" />
+            <Setter Property="Background" Value="{StaticResource DashboardBackground}" />
             <Setter Property="BorderBrush" Value="{StaticResource DashboardBorder}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="ItemContainerStyle" Value="{StaticResource DashboardComboBoxItemStyle}" />
@@ -163,7 +175,7 @@
                             </Popup>
                         </Grid>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="OuterBorder" Property="BorderBrush" Value="#BFD0B6" /></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="OuterBorder" Property="BorderBrush" Value="#C5D4C4" /></Trigger>
                             <Trigger Property="IsDropDownOpen" Value="True">
                                 <Trigger.EnterActions>
                                     <BeginStoryboard>
@@ -195,12 +207,12 @@
             <Setter Property="Background" Value="{StaticResource DashboardPanel}" />
             <Setter Property="BorderBrush" Value="{StaticResource DashboardBorder}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="CornerRadius" Value="12" />
         </Style>
 
         <Style x:Key="FieldBorderStyle" TargetType="Border">
             <Setter Property="Height" Value="34" />
-            <Setter Property="Background" Value="#F7F8F5" />
+            <Setter Property="Background" Value="{StaticResource DashboardBackground}" />
             <Setter Property="BorderBrush" Value="{StaticResource DashboardBorder}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="6" />
@@ -221,7 +233,7 @@
 
         <Style x:Key="DashboardScrollThumbStyle" TargetType="Thumb">
             <Setter Property="MinHeight" Value="32" />
-            <Setter Property="Background" Value="#A7B0A3" />
+            <Setter Property="Background" Value="#998A8175" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
@@ -242,7 +254,7 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#7E9E6D" />
+                    <Setter Property="Background" Value="#CC3E6B4F" />
                 </Trigger>
                 <Trigger Property="IsDragging" Value="True">
                     <Setter Property="Background" Value="{StaticResource DashboardGreen}" />
@@ -299,18 +311,20 @@
         </ControlTemplate>
     </Window.Resources>
 
-    <Border Margin="8" Background="{StaticResource DashboardBackground}" BorderBrush="{StaticResource DashboardBorder}" BorderThickness="1" CornerRadius="14">
+    <Grid>
+    <Border Margin="16,14,16,18" CornerRadius="18" Background="#241C1917" IsHitTestVisible="False" />
+    <Border Margin="12,8,12,14" Background="{StaticResource DashboardBackground}" BorderBrush="{StaticResource DashboardBorder}" BorderThickness="1" CornerRadius="16">
         <Grid Margin="22,18,22,18">
             <Grid.RowDefinitions>
-                <RowDefinition Height="52" />
-                <RowDefinition Height="1" />
+                <RowDefinition Height="48" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid MouseLeftButtonDown="Header_MouseLeftButtonDown">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Width="30" Height="30" Background="#EEF4EA" CornerRadius="8">
+                    <Border Width="30" Height="30" Background="{StaticResource DashboardGreenSoft}" CornerRadius="8">
                         <Image Width="23" Height="23" Source="Assets/tokenfloat-cat.png" Stretch="UniformToFill" />
                     </Border>
                     <StackPanel Margin="10,0,0,0">
@@ -325,15 +339,98 @@
                 </Button>
             </Grid>
 
-            <Border Grid.Row="1" Background="{StaticResource DashboardBorder}" />
+            <Border Grid.Row="1" Margin="0,10,0,0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                    Background="{StaticResource DashboardSegment}" CornerRadius="8" Padding="2">
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="SourceTabButton" Content="来源" Tag="Source" Style="{StaticResource SettingsTabButtonStyle}" Click="SettingsTabButton_Click" />
+                    <Button x:Name="WindowTabButton" Content="窗口" Tag="Window" Style="{StaticResource SettingsTabButtonStyle}" Click="SettingsTabButton_Click" />
+                    <Button x:Name="DataTabButton" Content="数据" Tag="Data" Style="{StaticResource SettingsTabButtonStyle}" Click="SettingsTabButton_Click" />
+                    <Button x:Name="UpdateTabButton" Content="更新" Tag="Update" Style="{StaticResource SettingsTabButtonStyle}" Click="SettingsTabButton_Click" />
+                </StackPanel>
+            </Border>
 
-            <ScrollViewer Grid.Row="2"
-                          Margin="0,14,0,0"
-                          Padding="0,0,3,0"
-                          Template="{StaticResource DashboardScrollViewerTemplate}"
-                          HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto">
-                <StackPanel>
+            <Grid Grid.Row="2" Margin="0,10,0,0">
+                <ScrollViewer x:Name="SourcePage" Template="{StaticResource DashboardScrollViewerTemplate}"
+                              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                    <Border Style="{StaticResource SectionStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <TextBlock Text="NewAPI" FontFamily="{StaticResource DashboardFont}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource DashboardText}" />
+                            <TextBlock Grid.Row="1" Margin="0,10,0,4" Text="服务地址" FontFamily="{StaticResource DashboardFont}" FontSize="11" Foreground="{StaticResource DashboardMuted}" />
+                            <Border Grid.Row="2" Style="{StaticResource FieldBorderStyle}"><TextBox x:Name="NewApiBaseUrlTextBox" Margin="9,0" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Foreground="{StaticResource DashboardText}" FontFamily="{StaticResource DashboardMonoFont}" FontSize="11" /></Border>
+                            <Grid Grid.Row="3" Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="74" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,8,0"><TextBlock Text="系统 Token" Margin="0,0,0,4" FontFamily="{StaticResource DashboardFont}" FontSize="11" Foreground="{StaticResource DashboardMuted}" /><Border Style="{StaticResource FieldBorderStyle}"><PasswordBox x:Name="NewApiTokenPasswordBox" Margin="9,0" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Foreground="{StaticResource DashboardText}" FontFamily="{StaticResource DashboardMonoFont}" FontSize="11" /></Border></StackPanel>
+                                <StackPanel Grid.Column="1" Margin="0,0,8,0"><TextBlock Text="用户 ID" Margin="0,0,0,4" FontFamily="{StaticResource DashboardFont}" FontSize="11" Foreground="{StaticResource DashboardMuted}" /><Border Style="{StaticResource FieldBorderStyle}"><TextBox x:Name="NewApiUserIdTextBox" Margin="9,0" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Foreground="{StaticResource DashboardText}" FontFamily="{StaticResource DashboardMonoFont}" FontSize="11" /></Border></StackPanel>
+                                <StackPanel Grid.Column="2" Margin="0,20,0,0" Orientation="Horizontal">
+                                    <Button x:Name="TestNewApiButton" Margin="0,0,7,0" Content="测试连接" Click="TestNewApiButton_Click" Style="{StaticResource DashboardButtonStyle}" />
+                                    <Button Content="保存" Click="SaveNewApiButton_Click" Style="{StaticResource DashboardButtonStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                    <Border Margin="0,10,0,0" Style="{StaticResource SectionStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <TextBlock Text="本地 Antigravity" FontFamily="{StaticResource DashboardFont}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource DashboardText}" />
+                            <StackPanel Grid.Row="1" Margin="0,10,0,0">
+                                <CheckBox x:Name="AntigravityUsageCheckBox" Content="读取 Antigravity IDE 用量和配额" Style="{StaticResource ToggleStyle}" />
+                                <TextBlock Margin="0,3,0,0" Text="需要 IDE 运行并登录。读取本机可见会话中已提供的 Token 记录，配额单独显示；缺失的用量会标注，订阅费用不作估算。" TextWrapping="Wrap" FontFamily="{StaticResource DashboardFont}" FontSize="11" Foreground="{StaticResource DashboardMuted}" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Margin="0,10,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
+                                <Button x:Name="TestAntigravityButton" Margin="0,0,7,0" Content="测试配额" Click="TestAntigravityButton_Click" Style="{StaticResource DashboardButtonStyle}" />
+                                <Button x:Name="SaveAntigravityButton" Content="保存并刷新" Click="SaveAntigravityButton_Click" Style="{StaticResource DashboardButtonStyle}" Foreground="{StaticResource DashboardGreen}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <ScrollViewer x:Name="WindowPage" Visibility="Collapsed" Template="{StaticResource DashboardScrollViewerTemplate}"
+                              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <Border Style="{StaticResource SectionStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <TextBlock Text="窗口" FontFamily="{StaticResource DashboardFont}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource DashboardText}" />
+                            <Grid Grid.Row="1" Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="128" /></Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Text="统计刷新间隔" FontFamily="{StaticResource DashboardFont}" FontSize="13" Foreground="{StaticResource DashboardText}" />
+                                <ComboBox x:Name="RefreshIntervalComboBox" Grid.Column="1" SelectionChanged="RefreshIntervalComboBox_SelectionChanged" Style="{StaticResource DashboardComboBoxStyle}">
+                                    <ComboBoxItem Content="10 秒" Tag="10" /><ComboBoxItem Content="30 秒" Tag="30" /><ComboBoxItem Content="1 分钟" Tag="60" /><ComboBoxItem Content="5 分钟" Tag="300" />
+                                </ComboBox>
+                            </Grid>
+                            <CheckBox x:Name="RefreshOnlyVisibleCheckBox" Grid.Row="2" Margin="0,10,0,0" Content="仅窗口可见时刷新" Click="RefreshOnlyVisibleCheckBox_Click" Style="{StaticResource ToggleStyle}" />
+                            <StackPanel Grid.Row="3" Margin="0,10,0,0">
+                                <CheckBox x:Name="KeepOnTopCheckBox" Content="置于顶层" Click="KeepOnTopCheckBox_Click" Style="{StaticResource ToggleStyle}" />
+                                <TextBlock Margin="0,3,46,0" Text="开启后，主窗口和设置窗口保持在其他窗口之上" FontFamily="{StaticResource DashboardFont}" FontSize="11" Foreground="{StaticResource DashboardMuted}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </ScrollViewer>
+
+                <ScrollViewer x:Name="DataPage" Visibility="Collapsed" Template="{StaticResource DashboardScrollViewerTemplate}"
+                              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <Border Style="{StaticResource SectionStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <Grid><TextBlock Text="本地数据" FontFamily="{StaticResource DashboardFont}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource DashboardText}" /><Button HorizontalAlignment="Right" Content="打开目录" Click="OpenDataFolderButton_Click" Style="{StaticResource DashboardButtonStyle}" /></Grid>
+                            <Grid Grid.Row="1" Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock Text="统计缓存" FontFamily="{StaticResource DashboardFont}" FontSize="13" Foreground="{StaticResource DashboardMuted}" /><TextBlock x:Name="UsageCacheSizeText" Grid.Column="1" FontFamily="{StaticResource DashboardMonoFont}" FontSize="12" Foreground="{StaticResource DashboardGreen}" />
+                                <TextBlock Grid.Column="3" Text="错误日志" FontFamily="{StaticResource DashboardFont}" FontSize="13" Foreground="{StaticResource DashboardMuted}" /><TextBlock x:Name="ErrorLogSizeText" Grid.Column="4" FontFamily="{StaticResource DashboardMonoFont}" FontSize="12" Foreground="{StaticResource DashboardPink}" />
+                            </Grid>
+                            <Grid Grid.Row="2" Margin="0,10,0,0">
+                                <TextBlock Text="本次刷新耗时" FontFamily="{StaticResource DashboardFont}" FontSize="13" Foreground="{StaticResource DashboardMuted}" />
+                                <TextBlock x:Name="RefreshDurationText" HorizontalAlignment="Right" Text="尚未刷新" FontFamily="{StaticResource DashboardMonoFont}" FontSize="12" Foreground="{StaticResource DashboardGreen}" />
+                            </Grid>
+                            <StackPanel Grid.Row="3" Margin="0,10,0,0" HorizontalAlignment="Right" Orientation="Horizontal"><Button x:Name="ClearUsageCacheButton" Margin="0,0,7,0" Content="清除统计缓存" Click="ClearUsageCacheButton_Click" Style="{StaticResource DashboardButtonStyle}" /><Button x:Name="ClearErrorLogsButton" Content="清除错误日志" Click="ClearErrorLogsButton_Click" Style="{StaticResource DashboardButtonStyle}" /></StackPanel>
+                        </Grid>
+                    </Border>
+                </ScrollViewer>
+
+                <ScrollViewer x:Name="UpdatePage" Visibility="Collapsed" Template="{StaticResource DashboardScrollViewerTemplate}"
+                              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                     <Border Style="{StaticResource SectionStyle}">
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
@@ -351,61 +448,11 @@
                             </StackPanel>
                         </Grid>
                     </Border>
-
-                    <Border Margin="0,10,0,0" Style="{StaticResource SectionStyle}">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                            <TextBlock Text="刷新与窗口" FontFamily="{StaticResource DashboardFont}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource DashboardText}" />
-                            <Grid Grid.Row="1" Margin="0,10,0,0">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="128" /></Grid.ColumnDefinitions>
-                                <TextBlock VerticalAlignment="Center" Text="统计刷新间隔" FontFamily="{StaticResource DashboardFont}" FontSize="13" Foreground="{StaticResource DashboardText}" />
-                                <ComboBox x:Name="RefreshIntervalComboBox" Grid.Column="1" SelectionChanged="RefreshIntervalComboBox_SelectionChanged" Style="{StaticResource DashboardComboBoxStyle}">
-                                    <ComboBoxItem Content="10 秒" Tag="10" /><ComboBoxItem Content="30 秒" Tag="30" /><ComboBoxItem Content="1 分钟" Tag="60" /><ComboBoxItem Content="5 分钟" Tag="300" />
-                                </ComboBox>
-                            </Grid>
-                            <CheckBox x:Name="RefreshOnlyVisibleCheckBox" Grid.Row="2" Margin="0,10,0,0" Content="仅窗口可见时刷新" Click="RefreshOnlyVisibleCheckBox_Click" Style="{StaticResource ToggleStyle}" />
-                            <CheckBox x:Name="KeepOnTopCheckBox" Grid.Row="3" Margin="0,10,0,0" Content="窗口置顶显示" Click="KeepOnTopCheckBox_Click" Style="{StaticResource ToggleStyle}" />
-                        </Grid>
-                    </Border>
-
-                    <Border Margin="0,10,0,0" Style="{StaticResource SectionStyle}">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                            <TextBlock Text="NewAPI" FontFamily="{StaticResource DashboardFont}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource DashboardText}" />
-                            <TextBlock Grid.Row="1" Margin="0,10,0,4" Text="服务地址" FontFamily="{StaticResource DashboardFont}" FontSize="11" Foreground="{StaticResource DashboardMuted}" />
-                            <Border Grid.Row="2" Style="{StaticResource FieldBorderStyle}"><TextBox x:Name="NewApiBaseUrlTextBox" Margin="9,0" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Foreground="{StaticResource DashboardText}" FontFamily="{StaticResource DashboardMonoFont}" FontSize="11" /></Border>
-                            <Grid Grid.Row="3" Margin="0,10,0,0">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="74" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <StackPanel Margin="0,0,8,0"><TextBlock Text="系统 Token" Margin="0,0,0,4" FontFamily="{StaticResource DashboardFont}" FontSize="11" Foreground="{StaticResource DashboardMuted}" /><Border Style="{StaticResource FieldBorderStyle}"><PasswordBox x:Name="NewApiTokenPasswordBox" Margin="9,0" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Foreground="{StaticResource DashboardText}" FontFamily="{StaticResource DashboardMonoFont}" FontSize="11" /></Border></StackPanel>
-                                <StackPanel Grid.Column="1" Margin="0,0,8,0"><TextBlock Text="用户 ID" Margin="0,0,0,4" FontFamily="{StaticResource DashboardFont}" FontSize="11" Foreground="{StaticResource DashboardMuted}" /><Border Style="{StaticResource FieldBorderStyle}"><TextBox x:Name="NewApiUserIdTextBox" Margin="9,0" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Foreground="{StaticResource DashboardText}" FontFamily="{StaticResource DashboardMonoFont}" FontSize="11" /></Border></StackPanel>
-                                <StackPanel Grid.Column="2" Margin="0,20,0,0" Orientation="Horizontal">
-                                    <Button x:Name="TestNewApiButton" Margin="0,0,7,0" Content="测试连接" Click="TestNewApiButton_Click" Style="{StaticResource DashboardButtonStyle}" />
-                                    <Button Content="保存" Click="SaveNewApiButton_Click" Style="{StaticResource DashboardButtonStyle}" />
-                                </StackPanel>
-                            </Grid>
-                        </Grid>
-                    </Border>
-
-                    <Border Margin="0,10,0,0" Style="{StaticResource SectionStyle}">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                            <Grid><TextBlock Text="本地数据" FontFamily="{StaticResource DashboardFont}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource DashboardText}" /><Button HorizontalAlignment="Right" Content="打开目录" Click="OpenDataFolderButton_Click" Style="{StaticResource DashboardButtonStyle}" /></Grid>
-                            <Grid Grid.Row="1" Margin="0,10,0,0">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBlock Text="统计缓存" FontFamily="{StaticResource DashboardFont}" FontSize="13" Foreground="{StaticResource DashboardMuted}" /><TextBlock x:Name="UsageCacheSizeText" Grid.Column="1" FontFamily="{StaticResource DashboardMonoFont}" FontSize="12" Foreground="{StaticResource DashboardGreen}" />
-                                <TextBlock Grid.Column="3" Text="错误日志" FontFamily="{StaticResource DashboardFont}" FontSize="13" Foreground="{StaticResource DashboardMuted}" /><TextBlock x:Name="ErrorLogSizeText" Grid.Column="4" FontFamily="{StaticResource DashboardMonoFont}" FontSize="12" Foreground="{StaticResource DashboardPink}" />
-                            </Grid>
-                            <Grid Grid.Row="2" Margin="0,10,0,0">
-                                <TextBlock Text="本次刷新耗时" FontFamily="{StaticResource DashboardFont}" FontSize="13" Foreground="{StaticResource DashboardMuted}" />
-                                <TextBlock x:Name="RefreshDurationText" HorizontalAlignment="Right" Text="尚未刷新" FontFamily="{StaticResource DashboardMonoFont}" FontSize="12" Foreground="{StaticResource DashboardGreen}" />
-                            </Grid>
-                            <StackPanel Grid.Row="3" Margin="0,10,0,0" HorizontalAlignment="Right" Orientation="Horizontal"><Button x:Name="ClearUsageCacheButton" Margin="0,0,7,0" Content="清除统计缓存" Click="ClearUsageCacheButton_Click" Style="{StaticResource DashboardButtonStyle}" /><Button x:Name="ClearErrorLogsButton" Content="清除错误日志" Click="ClearErrorLogsButton_Click" Style="{StaticResource DashboardButtonStyle}" /></StackPanel>
-                        </Grid>
-                    </Border>
-                </StackPanel>
-            </ScrollViewer>
+                </ScrollViewer>
+            </Grid>
 
             <TextBlock x:Name="StatusText" Grid.Row="3" Margin="0,10,0,0" MinHeight="36" Text="设置只保存在本机" TextWrapping="Wrap" FontFamily="{StaticResource DashboardFont}" FontSize="12" Foreground="{StaticResource DashboardMuted}" />
         </Grid>
     </Border>
+    </Grid>
 </Window>
