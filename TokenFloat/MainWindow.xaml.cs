@@ -26,8 +26,8 @@ public partial class MainWindow : Window
 {
     private const double NormalWidth = 516;
     private const double NormalHeight = 328;
-    private const double MiniWidth = 304;
-    private const double MiniHeight = 96;
+    private const double MiniWidth = 200;
+    private const double MiniHeight = 80;
     private const double TrendPlotLeft = 54;
     private const double TrendPlotTop = 14;
     private const double TrendPlotRight = 16;
@@ -1201,8 +1201,8 @@ public partial class MainWindow : Window
             Opacity = 0,
             RenderTransform = new TranslateTransform()
         };
-        Canvas.SetLeft(text, 58);
-        Canvas.SetTop(text, 31);
+        Canvas.SetLeft(text, 2);
+        Canvas.SetTop(text, 22);
         MiniIncreaseCanvas.Children.Add(text);
 
         var duration = TimeSpan.FromSeconds(1.8);
