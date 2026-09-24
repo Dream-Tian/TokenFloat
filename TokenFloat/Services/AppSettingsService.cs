@@ -81,6 +81,13 @@ public sealed class AppSettingsService
         SettingsChanged?.Invoke(_settings);
     }
 
+    public void SetUseDarkTheme(bool enabled)
+    {
+        _settings = _settings with { UseDarkTheme = enabled };
+        Save();
+        SettingsChanged?.Invoke(_settings);
+    }
+
     /// <summary>
     /// 读取设置并解密 Token；发现旧版明文字段时标记为需要立即迁移。
     /// </summary>
@@ -103,7 +110,8 @@ public sealed class AppSettingsService
                         protectedToken ?? legacyToken,
                         Math.Max(0, stored.NewApiUserId),
                         stored.KeepWindowOnTop,
-                        stored.AntigravityUsageEnabled);
+                        stored.AntigravityUsageEnabled,
+                        stored.UseDarkTheme);
                     return (settings, migrateLegacyToken);
                 }
             }
@@ -131,7 +139,8 @@ public sealed class AppSettingsService
                 NewApiAccessTokenProtected = ProtectToken(_settings.NewApiAccessToken),
                 NewApiUserId = _settings.NewApiUserId,
                 KeepWindowOnTop = _settings.KeepWindowOnTop,
-                AntigravityUsageEnabled = _settings.AntigravityUsageEnabled
+                AntigravityUsageEnabled = _settings.AntigravityUsageEnabled,
+                UseDarkTheme = _settings.UseDarkTheme
             };
             File.WriteAllText(_settingsPath, JsonSerializer.Serialize(stored, JsonOptions));
         }
@@ -191,6 +200,8 @@ public sealed class AppSettingsService
 
         public bool AntigravityUsageEnabled { get; set; }
 
+        public bool UseDarkTheme { get; set; }
+
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? NewApiAccessToken { get; set; }
     }
@@ -203,7 +214,8 @@ public sealed record AppSettings(
     [property: JsonIgnore] string NewApiAccessToken = "",
     int NewApiUserId = 0,
     bool KeepWindowOnTop = false,
-    bool AntigravityUsageEnabled = false)
+    bool AntigravityUsageEnabled = false,
+    bool UseDarkTheme = false)
 {
     public bool IsNewApiConfigured =>
         !string.IsNullOrWhiteSpace(NewApiBaseUrl) &&

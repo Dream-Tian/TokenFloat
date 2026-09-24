@@ -14,10 +14,10 @@
         WindowStartupLocation="CenterOwner"
         FontFamily="楷体">
     <Grid>
-        <Border Margin="16,14,16,18" CornerRadius="18" Background="#241C1917" IsHitTestVisible="False" />
+        <Border Margin="16,14,16,18" CornerRadius="18" Background="{DynamicResource DashboardShadow}" IsHitTestVisible="False" />
         <Border Margin="12,8,12,14"
-                Background="{StaticResource DashboardBackground}"
-                BorderBrush="{StaticResource DashboardBorder}"
+                Background="{DynamicResource DashboardBackground}"
+                BorderBrush="{DynamicResource DashboardBorder}"
                 BorderThickness="1"
                 CornerRadius="16">
             <Grid Margin="22,18,22,18">
@@ -31,19 +31,19 @@
 
                 <Grid MouseLeftButtonDown="Header_MouseLeftButtonDown">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Width="28" Height="28" Background="{StaticResource DashboardGreenSoft}" CornerRadius="8">
+                        <Border Width="28" Height="28" Background="{DynamicResource DashboardGreenSoft}" CornerRadius="8">
                             <Image Width="20" Height="20" Source="Assets/tokenfloat-cat.png" Stretch="UniformToFill" />
                         </Border>
                         <StackPanel Margin="10,0,0,0">
                             <TextBlock Text="下载更新"
                                        FontFamily="华文行楷"
                                        FontSize="22"
-                                       Foreground="{StaticResource DashboardText}" />
+                                       Foreground="{DynamicResource DashboardText}" />
                             <TextBlock x:Name="VersionText"
                                        Margin="0,1,0,0"
                                        FontFamily="楷体"
                                        FontSize="11"
-                                       Foreground="{StaticResource DashboardMuted}" />
+                                       Foreground="{DynamicResource DashboardMuted}" />
                         </StackPanel>
                     </StackPanel>
                 </Grid>
@@ -53,15 +53,15 @@
                            Margin="0,16,0,8"
                            Text="准备下载…"
                            FontSize="13"
-                           Foreground="{StaticResource DashboardText}" />
+                           Foreground="{DynamicResource DashboardText}" />
 
                 <ProgressBar x:Name="DownloadProgressBar"
                              Grid.Row="2"
                              Height="6"
                              Minimum="0"
                              Maximum="100"
-                             Background="{StaticResource DashboardTrack}"
-                             Foreground="{StaticResource DashboardGreen}">
+                             Background="{DynamicResource DashboardTrack}"
+                             Foreground="{DynamicResource DashboardGreen}">
                     <ProgressBar.Template>
                         <ControlTemplate TargetType="ProgressBar">
                             <Border Background="{TemplateBinding Background}" CornerRadius="3">
@@ -80,12 +80,12 @@
                     <TextBlock x:Name="SizeText"
                                Text="0 B"
                                FontSize="11"
-                               Foreground="{StaticResource DashboardMuted}" />
+                               Foreground="{DynamicResource DashboardMuted}" />
                     <TextBlock x:Name="SpeedText"
                                HorizontalAlignment="Right"
                                Text="0 B/s"
                                FontSize="11"
-                               Foreground="{StaticResource DashboardMuted}" />
+                               Foreground="{DynamicResource DashboardMuted}" />
                 </Grid>
 
                 <Button x:Name="CancelButton"
@@ -99,9 +99,9 @@
                         Click="CancelButton_Click"
                         Cursor="Hand"
                         FontSize="12"
-                        Foreground="{StaticResource DashboardMuted}"
-                        Background="{StaticResource DashboardPanel}"
-                        BorderBrush="{StaticResource DashboardBorder}"
+                        Foreground="{DynamicResource DashboardMuted}"
+                        Background="{DynamicResource DashboardPanel}"
+                        BorderBrush="{DynamicResource DashboardBorder}"
                         BorderThickness="1">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">

@@ -6,12 +6,25 @@ namespace TokenFloat.Services;
 
 public sealed class InkContextMenuRenderer : ToolStripProfessionalRenderer
 {
-    private static readonly Color Background = Color.FromArgb(255, 255, 255);
-    private static readonly Color Border = Color.FromArgb(228, 222, 212);
-    private static readonly Color Text = Color.FromArgb(28, 25, 23);
-    private static readonly Color Muted = Color.FromArgb(120, 113, 108);
-    private static readonly Color Green = Color.FromArgb(62, 107, 79);
-    private static readonly Color GreenSurface = Color.FromArgb(230, 240, 231);
+    private static Color Background = Color.White;
+    private static Color Border = Color.FromArgb(229, 229, 229);
+    private static Color Text = Color.FromArgb(17, 17, 17);
+    private static Color Muted = Color.FromArgb(102, 102, 102);
+    private static Color Green = Color.FromArgb(31, 122, 69);
+    private static Color GreenSurface = Color.FromArgb(232, 245, 238);
+
+    /// <summary>
+    /// 托盘菜单在绘制时读取这些颜色，切换主题后下次打开即生效。
+    /// </summary>
+    public static void ApplyTheme(bool dark)
+    {
+        Background = dark ? Color.Black : Color.White;
+        Border = dark ? Color.FromArgb(46, 46, 46) : Color.FromArgb(229, 229, 229);
+        Text = dark ? Color.White : Color.FromArgb(17, 17, 17);
+        Muted = dark ? Color.FromArgb(163, 163, 163) : Color.FromArgb(102, 102, 102);
+        Green = dark ? Color.FromArgb(125, 206, 160) : Color.FromArgb(31, 122, 69);
+        GreenSurface = dark ? Color.FromArgb(22, 48, 31) : Color.FromArgb(232, 245, 238);
+    }
 
     public InkContextMenuRenderer() : base(new DashboardColorTable())
     {

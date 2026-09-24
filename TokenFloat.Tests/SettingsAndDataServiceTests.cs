@@ -54,6 +54,21 @@ public sealed class SettingsAndDataServiceTests : IDisposable
     }
 
     [Fact]
+    public void UseDarkTheme_PersistAndNotify()
+    {
+        var service = new AppSettingsService(_folder);
+        AppSettings? notified = null;
+        service.SettingsChanged += settings => notified = settings;
+
+        service.SetUseDarkTheme(true);
+        var reloaded = new AppSettingsService(_folder);
+
+        Assert.NotNull(notified);
+        Assert.True(notified.UseDarkTheme);
+        Assert.True(reloaded.Settings.UseDarkTheme);
+    }
+
+    [Fact]
     public void DashboardUiState_PersistsAcrossReload()
     {
         var store = new WindowPositionStore(_folder);

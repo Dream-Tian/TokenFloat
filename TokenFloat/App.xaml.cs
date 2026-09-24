@@ -23,7 +23,10 @@ public partial class App : System.Windows.Application
         _appSettingsService = new AppSettingsService();
         _usageLogService = new UsageLogService(_appSettingsService);
         DispatcherUnhandledException += (_, args) =>
+        {
             _errorLogService.Write("DispatcherUnhandledException", args.Exception);
+            args.Handled = true;
+        };
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
             if (args.ExceptionObject is Exception exception)
@@ -44,6 +47,8 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        DashboardTheme.Apply(_appSettingsService.Settings.UseDarkTheme);
+        _appSettingsService.SettingsChanged += settings => DashboardTheme.Apply(settings.UseDarkTheme);
 
         var isVerificationMode = e.Args.Contains("--verify-usage", StringComparer.OrdinalIgnoreCase) ||
                                  e.Args.Contains("--verify-antigravity", StringComparer.OrdinalIgnoreCase) ||

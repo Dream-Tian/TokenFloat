@@ -240,6 +240,10 @@ public partial class MainWindow : Window
     {
         _refreshTimer.Interval = TimeSpan.FromSeconds(settings.RefreshIntervalSeconds);
         Topmost = settings.KeepWindowOnTop;
+        if (_snapshot is not null)
+        {
+            DrawUsageTrend();
+        }
     }
 
     private void RenderSnapshot()
@@ -574,7 +578,7 @@ public partial class MainWindow : Window
                 Y1 = y,
                 X2 = TrendPlotLeft + plotWidth,
                 Y2 = y,
-                Stroke = new SolidColorBrush(Color.FromRgb(228, 222, 212)),
+                Stroke = (Brush)FindResource("DashboardBorder"),
                 StrokeThickness = 1
             });
 
@@ -762,9 +766,9 @@ public partial class MainWindow : Window
     private Color TrendAccentColor() =>
         _trendMetric switch
         {
-            TrendMetric.Tokens => Color.FromRgb(61, 111, 154),
-            TrendMetric.Requests => Color.FromRgb(110, 90, 166),
-            _ => Color.FromRgb(194, 113, 12)
+            TrendMetric.Tokens => ((SolidColorBrush)FindResource("DashboardBlue")).Color,
+            TrendMetric.Requests => ((SolidColorBrush)FindResource("DashboardViolet")).Color,
+            _ => ((SolidColorBrush)FindResource("DashboardOrange")).Color
         };
 
     private string FormatTrendAxisValue(double value) =>

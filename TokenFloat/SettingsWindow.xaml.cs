@@ -54,6 +54,7 @@ public partial class SettingsWindow : Window
         RefreshOnlyVisibleCheckBox.IsChecked = appSettings.RefreshOnlyWhenVisible;
         KeepOnTopCheckBox.IsChecked = appSettings.KeepWindowOnTop;
         Topmost = appSettings.KeepWindowOnTop;
+        UpdateThemeButtons(appSettings.UseDarkTheme);
         ShowSettingsPage("Source");
         NewApiBaseUrlTextBox.Text = appSettings.NewApiBaseUrl;
         NewApiTokenPasswordBox.Password = appSettings.NewApiAccessToken;
@@ -130,6 +131,25 @@ public partial class SettingsWindow : Window
         _appSettingsService.SetKeepWindowOnTop(enabled);
         Topmost = enabled;
         ShowStatus(enabled ? "窗口将保持在最上层" : "已取消置于顶层", true);
+    }
+
+    private void ThemeButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading || sender is not System.Windows.Controls.Button { Tag: string tag })
+        {
+            return;
+        }
+
+        var dark = tag == "Dark";
+        _appSettingsService.SetUseDarkTheme(dark);
+        UpdateThemeButtons(dark);
+        ShowStatus(dark ? "已切换为深色" : "已切换为浅色", true);
+    }
+
+    private void UpdateThemeButtons(bool dark)
+    {
+        SetSettingsTabState(LightThemeButton, !dark);
+        SetSettingsTabState(DarkThemeButton, dark);
     }
 
     private async void SaveNewApiButton_Click(object sender, RoutedEventArgs e)
